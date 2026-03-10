@@ -9,20 +9,32 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/css/style.css">
+<style>
+  /* Custom color variables for SALES and PULSE */
+  :root {
+    --h-sales-pink: #f46087;
+    --h-pulse-orange: #ff8f3f;
+  }
+</style>
 </head>
 <body>
 <div class="page">
 
 <header>
-  <div>
-    <div class="h-brand">
-      <div style="display:flex;flex-direction:column;justify-content:center;gap:0px;">
-        <div class="h-title">SALES <span>PULSE</span></div>
-        <div style="font-size:12px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Budget vs Actual · 2026</div>
+  <div class="h-left-group" style="display: flex; align-items: center; gap: 20px;">
+    <img src="/assets/logo.jpg" class="h-logo-img" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--s3); flex-shrink: 0;" alt="Logo">
+    
+    <div style="display: flex; flex-direction: column;">
+      <div class="h-brand">
+        <div style="display:flex;flex-direction:column;justify-content:center;gap:0px;">
+          <div class="h-title"><span style="color:var(--h-sales-pink)">SALES</span> <span style="color:var(--h-pulse-orange)">PULSE</span></div>
+          <div style="font-size:16px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Budget vs Actual · 2026</div>
+        </div>
       </div>
+      <div class="h-sub">Budget vs Actual · Monthly · GP + ATL Consolidated</div>
     </div>
-    <div class="h-sub">Budget vs Actual · Monthly · GP + ATL Consolidated</div>
   </div>
+
   <div class="h-actions">
     <button class="btn btn-ghost" onclick="openBudgetModal()" style="border-color:var(--plan); color:var(--plan);">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -33,7 +45,8 @@
       Import Excel
       <input type="file" id="globalUpload" accept=".csv, .xls, .xlsx" style="display:none">
     </label>
-  </div>
+    
+    </div>
 </header>
 
 <div class="presence-bar">
