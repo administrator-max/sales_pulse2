@@ -220,8 +220,36 @@ app.post('/api/project-sheet', async (req, res) => {
       ]);
     }
 
+    // ── AUTO-AGGREGATE: Sum semua PS di bulan ini → update monthly_actuals ──
+    // ps_headers.margin disimpan dalam IDR (raw).
+    // monthly_actuals.actual_margin pakai satuan MIDR (juta IDR).
+    // Jadi kita bagi 1,000,000 saat aggregate.
+    const aggRes = await client.query(`
+      SELECT
+        COALESCE(SUM(margin), 0)        AS total_margin,
+        COALESCE(SUM(sales_revenue), 0) AS total_revenue
+      FROM ps_headers
+      WHERE dashboard_month_idx = $1
+    `, [monthIdx]);
+
+    const totalMarginMIDR  = parseFloat(aggRes.rows[0].total_margin)  / 1_000_000;
+    const totalRevenueMIDR = parseFloat(aggRes.rows[0].total_revenue) / 1_000_000;
+
+    await client.query(`
+      INSERT INTO monthly_actuals (month_idx, actual_margin, revenue)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (month_idx) DO UPDATE SET
+        actual_margin = EXCLUDED.actual_margin,
+        revenue       = EXCLUDED.revenue,
+        updated_at    = CURRENT_TIMESTAMP
+    `, [monthIdx, totalMarginMIDR, totalRevenueMIDR]);
+
     await client.query('COMMIT');
-    res.json({ success: true, message: `Imported ${header.psNumber} successfully.` });
+    res.json({
+      success: true,
+      message: `Imported ${header.psNumber} successfully.`,
+      aggregated: { monthIdx, totalMarginMIDR, totalRevenueMIDR }
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: 'Failed to import Project Sheet' });

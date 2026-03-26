@@ -40,11 +40,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
       Edit Budget
     </button>
-    <label class="btn btn-ghost" style="cursor:pointer; background:rgba(34,211,238,0.1); border-color:#22d3ee; color:#22d3ee;">
+    <button class="btn btn-ghost" onclick="openUploadModal()" style="background:rgba(34,211,238,0.1); border-color:#22d3ee; color:#22d3ee;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       Import Excel
-      <input type="file" id="globalUpload" accept=".csv, .xls, .xlsx" style="display:none">
-    </label>
+    </button>
     
     </div>
 </header>
@@ -417,6 +416,119 @@
 </div>
 
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     UPLOAD EXCEL MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="upload-modal-overlay" onclick="closeUploadModal(event)">
+  <div class="modal" id="upload-modal" style="width:720px;">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-month">Import <span>Project Sheet</span></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="upload-modal-badge" style="display:none;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:rgba(34,211,238,0.12);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);">File Loaded</span>
+        <button class="modal-close" onclick="closeUploadModal(null,true)">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- ── STEP 1: Drop / Select Zone ── -->
+      <div id="upload-dropzone"
+           ondragover="event.preventDefault();this.classList.add('upload-dz-hover')"
+           ondragleave="this.classList.remove('upload-dz-hover')"
+           ondrop="handleUploadDrop(event)"
+           onclick="document.getElementById('upload-file-input').click()"
+           style="border:2px dashed rgba(34,211,238,0.35);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px;background:rgba(34,211,238,0.03);">
+        <input type="file" id="upload-file-input" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleUploadFileSelect(event)">
+        <div style="margin-bottom:12px;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" style="opacity:0.7"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:6px;">Drag & Drop file di sini</div>
+        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; Format: <span style="color:#22d3ee;">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
+      </div>
+
+      <!-- ── STEP 2: Preview (hidden until file parsed) ── -->
+      <div id="upload-preview-section" style="display:none;">
+
+        <!-- Info header cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:18px;">
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">PS Number</div>
+            <div id="prev-ps-number" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:#22d3ee;">—</div>
+          </div>
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Customer</div>
+            <div id="prev-customer" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:#fff;">—</div>
+          </div>
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">PO Date → Bulan Dashboard</div>
+            <div id="prev-po-date" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--plan);">—</div>
+          </div>
+        </div>
+
+        <!-- KPI row: Sales / Purchase / Margin -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:18px;">
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total Sales</div>
+            <div id="prev-sales" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--ok);">—</div>
+          </div>
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Purchase</div>
+            <div id="prev-purchase" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--warn);">—</div>
+          </div>
+          <div style="background:var(--s2);padding:14px 16px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Margin</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div id="prev-margin" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:#22d3ee;">—</div>
+              <div id="prev-margin-pct" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--muted2);">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Item table -->
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Detail Item (<span id="prev-item-count">0</span> produk)</div>
+        <div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:20px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="background:var(--s3);">
+                <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">No</th>
+                <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Material / Deskripsi</th>
+                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Qty</th>
+                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Total Weight</th>
+                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Harga/KG</th>
+              </tr>
+            </thead>
+            <tbody id="prev-items-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Warning jika ada field kosong -->
+        <div id="upload-warning" style="display:none;padding:10px 14px;background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.3);border-radius:8px;font-size:12px;color:var(--warn);margin-bottom:16px;"></div>
+
+      </div><!-- /preview -->
+
+      <!-- ── Footer Actions ── -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid var(--border2);">
+        <div id="upload-file-info" style="font-size:12px;color:var(--muted2);">Belum ada file dipilih</div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" onclick="closeUploadModal(null,true)">Batal</button>
+          <button class="btn btn-ghost" onclick="resetUploadModal()" id="upload-btn-reset" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg>
+            Ganti File
+          </button>
+          <button id="upload-btn-submit" onclick="submitUploadToDb()" disabled
+            style="display:flex;align-items:center;gap:7px;padding:9px 20px;border-radius:7px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:not-allowed;border:none;background:rgba(34,211,238,0.15);color:rgba(34,211,238,0.4);transition:all 0.2s;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
+            Simpan ke Database
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /modal-body -->
+  </div><!-- /modal -->
+</div><!-- /upload-modal-overlay -->
 
 <script src="/js/state.js"></script>
 <script src="/js/ui.js"></script>

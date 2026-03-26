@@ -301,3 +301,34 @@ footer { padding: 20px; font-size: 11px; color: var(--muted); text-align: center
   .kpi-strip { grid-template-columns:repeat(3,1fr); }
 }
 @media(max-width:900px){#analytics-grid{grid-template-columns:1fr;}}
+/* ── Upload Excel Modal ────────────────────────────────────── */
+.upload-dz-hover {
+  border-color: rgba(34,211,238,0.8) !important;
+  background: rgba(34,211,238,0.07) !important;
+}
+.upload-dz-hover svg { opacity: 1 !important; }
+
+#upload-btn-submit.ready {
+  background: linear-gradient(135deg, #0e9ab5, #0d7a91);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(34,211,238,0.25);
+}
+#upload-btn-submit.ready:hover {
+  background: linear-gradient(135deg, #12b0ce, #0e8aa8);
+}
+#upload-btn-submit.loading {
+  background: rgba(34,211,238,0.2);
+  color: rgba(34,211,238,0.6);
+  cursor: wait;
+  animation: upload-pulse 1.2s infinite;
+}
+@keyframes upload-pulse {
+  0%,100% { opacity:1; }
+  50%      { opacity:0.55; }
+}
+
+#prev-items-tbody tr { border-bottom: 1px solid var(--border); }
+#prev-items-tbody tr:last-child { border-bottom: none; }
+#prev-items-tbody tr:hover { background: rgba(255,255,255,0.03); }
+#prev-items-tbody td { padding: 9px 12px; color: var(--text); vertical-align: top; }
