@@ -332,3 +332,12 @@ footer { padding: 20px; font-size: 11px; color: var(--muted); text-align: center
 #prev-items-tbody tr:last-child { border-bottom: none; }
 #prev-items-tbody tr:hover { background: rgba(255,255,255,0.03); }
 #prev-items-tbody td { padding: 9px 12px; color: var(--text); vertical-align: top; }
+
+/* ── Delete PS Confirm Modal ────────────────────────────────── */
+#delete-ps-overlay.open {
+  opacity: 1 !important;
+  pointer-events: all !important;
+}
+#delete-ps-overlay.open > div {
+  transform: translateY(0) scale(1) !important;
+}

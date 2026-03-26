@@ -530,6 +530,60 @@
   </div><!-- /modal -->
 </div><!-- /upload-modal-overlay -->
 
+<!-- ═══════════════════════════════════════════════════════════
+     DELETE PS CONFIRM MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div id="delete-ps-overlay"
+     style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.25s;"
+     onclick="if(event.target===this)closeDeleteModal()">
+  <div style="background:var(--s1);border:1px solid rgba(244,63,94,0.35);border-radius:14px;width:420px;max-width:92vw;padding:0;box-shadow:0 32px 80px rgba(0,0,0,0.7);transform:translateY(16px) scale(0.97);transition:transform 0.25s cubic-bezier(.4,0,.2,1);">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px 16px;border-bottom:1px solid var(--border2);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.3);display:flex;align-items:center;justify-content:center;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.5">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:0.5px;">Hapus Project Sheet</div>
+      </div>
+      <button onclick="closeDeleteModal()" style="width:30px;height:30px;border-radius:6px;background:var(--s3);border:1px solid var(--border2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:20px 24px 24px;">
+      <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.2);border-radius:10px;padding:14px 16px;margin-bottom:18px;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(244,63,94,0.7);margin-bottom:6px;">Project Sheet yang akan dihapus</div>
+        <div id="delete-ps-name" style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:#fff;margin-bottom:3px;"></div>
+        <div id="delete-ps-number" style="font-size:11px;color:var(--muted2);font-family:monospace;"></div>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:20px;">
+        Tindakan ini akan menghapus <strong style="color:var(--text)">semua data</strong> PS ini dari database, termasuk seluruh item produk.
+        Nilai actual bulan terkait akan <strong style="color:var(--text)">otomatis diperbarui</strong>.
+        <span style="color:var(--over);font-weight:600;">Aksi ini tidak bisa dibatalkan.</span>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="closeDeleteModal()"
+          style="padding:9px 18px;border-radius:7px;background:var(--s2);border:1px solid var(--border2);color:var(--muted2);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">
+          Batal
+        </button>
+        <button id="delete-ps-confirm-btn" onclick="executeDeletePS()"
+          style="display:flex;align-items:center;gap:7px;padding:9px 18px;border-radius:7px;background:linear-gradient(135deg,#be123c,#9f1239);border:none;color:#fff;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;"
+          onmouseover="this.style.background='linear-gradient(135deg,#e11d48,#be123c)'"
+          onmouseout="this.style.background='linear-gradient(135deg,#be123c,#9f1239)'">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+          </svg>
+          Ya, Hapus
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/js/state.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/modals.js"></script>

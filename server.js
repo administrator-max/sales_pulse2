@@ -297,3 +297,62 @@ app.post('/api/project-sheet', async (req, res) => {
 });
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
+// ============================================================================
+// 5. DELETE PROJECT SHEET: Hapus PS & re-aggregate monthly_actuals
+// ============================================================================
+app.delete('/api/project-sheet/:psNumber', async (req, res) => {
+  const psNumber = decodeURIComponent(req.params.psNumber);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Cari bulan dari PS yang akan dihapus
+    const findRes = await client.query(
+      'SELECT dashboard_month_idx FROM ps_headers WHERE ps_number = $1',
+      [psNumber]
+    );
+    if (findRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'PS not found' });
+    }
+    const monthIdx = findRes.rows[0].dashboard_month_idx;
+
+    // Hapus items & header
+    await client.query('DELETE FROM ps_items WHERE ps_number = $1', [psNumber]);
+    await client.query('DELETE FROM ps_headers WHERE ps_number = $1', [psNumber]);
+
+    // Re-aggregate: SUM ulang semua PS yang tersisa di bulan ini
+    const remaining = parseInt(
+      (await client.query('SELECT COUNT(*) FROM ps_headers WHERE dashboard_month_idx = $1', [monthIdx]))
+      .rows[0].count
+    );
+
+    if (remaining > 0) {
+      const agg = await client.query(`
+        SELECT COALESCE(SUM(margin),0) AS m, COALESCE(SUM(sales_revenue),0) AS r
+        FROM ps_headers WHERE dashboard_month_idx = $1
+      `, [monthIdx]);
+      await client.query(`
+        UPDATE monthly_actuals
+        SET actual_margin = $1, revenue = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE month_idx = $3
+      `, [parseFloat(agg.rows[0].m)/1e6, parseFloat(agg.rows[0].r)/1e6, monthIdx]);
+    } else {
+      // Tidak ada PS tersisa → kembalikan ke NULL (tampilkan "—" di dashboard)
+      await client.query(`
+        UPDATE monthly_actuals
+        SET actual_margin = NULL, revenue = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE month_idx = $1
+      `, [monthIdx]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: `${psNumber} deleted.`, monthIdx, remaining });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete Project Sheet' });
+  } finally {
+    client.release();
+  }
+});

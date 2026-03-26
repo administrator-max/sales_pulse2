@@ -265,7 +265,28 @@ function openModal(idx) {
     let html=`<div class="modal-ps-title">📋 PS Consolidated · ${monthLabel} · ${chains.length} Proyek</div>`;
     chains.forEach((c, i) => {
       const col = colors[i%colors.length];
-      html += `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${col}">${c.name} · ${c.ps}</div><div style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct}%</div></div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Revenue</div><div class="modal-ps-val" style="color:var(--actual);font-size:13px">IDR ${c.revenue.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${c.customer}</div></div><div class="modal-ps-item"><div class="modal-ps-label">Net Margin</div><div class="modal-ps-val" style="color:var(--ok);font-size:13px">IDR ${c.margin.toFixed(2)} M</div><div class="modal-ps-sub">${c.pct}% consolidated</div></div></div></div>`;
+      html += `
+        <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${col}">${c.name} · ${c.ps}</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct}%</div>
+              <button onclick="confirmDeletePS('${c.ps.replace(/'/g,"\\'")}', '${c.name.replace(/'/g,"\\'")}', ${idx})"
+                title="Hapus PS ini"
+                style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;flex-shrink:0;transition:all 0.15s;"
+                onmouseover="this.style.background='rgba(244,63,94,0.22)'"
+                onmouseout="this.style.background='rgba(244,63,94,0.1)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="modal-ps-grid">
+            <div class="modal-ps-item"><div class="modal-ps-label">Revenue</div><div class="modal-ps-val" style="color:var(--actual);font-size:13px">IDR ${c.revenue.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${c.customer}</div></div>
+            <div class="modal-ps-item"><div class="modal-ps-label">Net Margin</div><div class="modal-ps-val" style="color:var(--ok);font-size:13px">IDR ${c.margin.toFixed(2)} M</div><div class="modal-ps-sub">${c.pct}% consolidated</div></div>
+          </div>
+        </div>`;
     });
     html+=`<div style="background:rgba(34,211,238,0.06);border-radius:6px;padding:10px 12px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);margin-bottom:8px;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--actual)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--ok)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;
     psInner.innerHTML=html;
@@ -894,4 +915,68 @@ function renderQtyBreakdown() {
     html = `<div style="padding:10px 20px 4px;"><span style="font-size:11px;color:var(--muted);font-style:italic;">Belum ada data aktual untuk ${MONTHS[mi]} — menampilkan budget target</span></div>` + html;
   }
   body.innerHTML = html;
+}
+// ============================================================================
+// DELETE PROJECT SHEET — Confirm dialog & API call
+// ============================================================================
+
+// State untuk menyimpan PS yang akan dihapus
+let _deletePsNumber = null;
+let _deletePsName   = null;
+let _deleteMonthIdx = null;
+
+function confirmDeletePS(psNumber, psName, monthIdx) {
+  _deletePsNumber = psNumber;
+  _deletePsName   = psName;
+  _deleteMonthIdx = monthIdx;
+
+  document.getElementById('delete-ps-name').textContent  = psName;
+  document.getElementById('delete-ps-number').textContent = psNumber;
+
+  const overlay = document.getElementById('delete-ps-overlay');
+  overlay.style.display = 'flex';
+  // Trigger transition
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function closeDeleteModal(force) {
+  const overlay = document.getElementById('delete-ps-overlay');
+  overlay.classList.remove('open');
+  setTimeout(() => { overlay.style.display = 'none'; }, 250);
+}
+
+async function executeDeletePS() {
+  if (!_deletePsNumber) return;
+
+  const btn = document.getElementById('delete-ps-confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+    Menghapus...`;
+
+  try {
+    const res = await fetch(
+      `/api/project-sheet/${encodeURIComponent(_deletePsNumber)}`,
+      { method: 'DELETE' }
+    );
+    const data = await res.json();
+
+    if (res.ok) {
+      closeDeleteModal(true);
+      showToast(`✓ ${_deletePsNumber} berhasil dihapus`);
+      // Tutup monthly modal dulu, lalu refresh semua data
+      closeModal(null, true);
+      if (typeof initApp === 'function') initApp();
+    } else {
+      throw new Error(data.error || `Error ${res.status}`);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      Ya, Hapus`;
+    showToast(`Gagal menghapus: ${err.message}`, true);
+  }
 }
