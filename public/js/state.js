@@ -125,8 +125,10 @@ function getActualQtyMT() {
   MONTH_KEYS.forEach(mk => {
       (QTY_DATA[mk] || []).forEach(p => {
           const mt = weightToMT(p.totalWeight);
-          const n = p.name.toLowerCase();
-          const match = PROD_CATS.find(c => c.match(n));
+          // Gunakan p.category (dari server) sebagai primary; fallback ke name-match
+          const match = p.category
+            ? PROD_CATS.find(c => c.key === p.category)
+            : PROD_CATS.find(c => c.match(p.name.toLowerCase()));
           if(match) res[match.key] += mt;
       })
   });

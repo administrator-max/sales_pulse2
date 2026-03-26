@@ -10,7 +10,11 @@ function buildChart() {
   const catData = PROD_CATS.map(cat => {
     return MONTH_KEYS.map((mk) => {
       const projs = QTY_DATA[mk] || [];
-      const mt = projs.filter(p => cat.match(p.name.toLowerCase())).reduce((s,p) => s + weightToMT(p.totalWeight), 0);
+      // Gunakan p.category (dari server, berdasarkan material code) sebagai
+      // primary match. Fallback ke cat.match(p.name) untuk data lama/seeded.
+      const mt = projs
+        .filter(p => p.category ? p.category === cat.key : cat.match(p.name.toLowerCase()))
+        .reduce((s,p) => s + weightToMT(p.totalWeight), 0);
       return mt > 0 ? mt : null;
     });
   });
@@ -305,34 +309,50 @@ function updateKPIs() {
 
 // ── ANALYTICS CARDS LOGIC ──
 function getProdCategoryData() {
+  // 5 kategori produk — GI dan GL ditambahkan agar tidak salah masuk ke PPGL
   const cats = {
     sheetPile:  { label:'Sheet Pile',   color:'#4ade80', margin:0, revenue:0, mt:0, projects:[] },
     weldedPipe: { label:'Welded Pipes', color:'#22d3ee', margin:0, revenue:0, mt:0, projects:[] },
     ppgl:       { label:'PPGL / Coil',  color:'#f59e0b', margin:0, revenue:0, mt:0, projects:[] },
+    gi:         { label:'GI Steel',     color:'#38bdf8', margin:0, revenue:0, mt:0, projects:[] },
+    gl:         { label:'GL Steel',     color:'#818cf8', margin:0, revenue:0, mt:0, projects:[] },
   };
-  
-  Object.values(PS_CHAINS).forEach(chains => {
+
+  // Helper: klasifikasi project dari nama (untuk data lama/seeded yang tidak punya category)
+  function classifyByName(name) {
+    const n = name.toLowerCase();
+    if (n.includes('sheet pile') || n.includes('mlion')) return 'sheetPile';
+    if (n.includes('welded') || n.includes('youfa') || n.includes('pipe')) return 'weldedPipe';
+    if (n.includes('ppgl') || n.includes('sssc') || n.includes('coil')) return 'ppgl';
+    if (n.includes('galvanized') || n.startsWith('gi')) return 'gi';
+    if (n.includes('galvalume') || n.startsWith('gl')) return 'gl';
+    return 'ppgl'; // fallback
+  }
+
+  // Margin & revenue dari PS_CHAINS — cari category dari QTY_DATA entry yang nama-nya sama
+  Object.entries(PS_CHAINS).forEach(([mk, chains]) => {
     chains.forEach(ch => {
-        const n=ch.name.toLowerCase();
-        let key = n.includes('sheet pile')||n.includes('mlion') ? 'sheetPile'
-                : n.includes('welded')||n.includes('youfa')||n.includes('pipe') ? 'weldedPipe'
-                : 'ppgl';
-        cats[key].margin  += ch.margin;
-        cats[key].revenue += ch.revenue;
-        if(!cats[key].projects.includes(ch.name)) cats[key].projects.push(ch.name);
+      // Cari di QTY_DATA bulan yang sama untuk dapat p.category dari server
+      const qEntry = (QTY_DATA[mk] || []).find(p => p.name === ch.name);
+      const key = (qEntry && qEntry.category) ? qEntry.category : classifyByName(ch.name);
+      if (!cats[key]) return; // skip unknown
+      cats[key].margin  += ch.margin;
+      cats[key].revenue += ch.revenue;
+      if (!cats[key].projects.includes(ch.name)) cats[key].projects.push(ch.name);
     });
   });
 
+  // Volume (MT) dari QTY_DATA — gunakan p.category langsung
   Object.values(QTY_DATA).forEach(projs => {
     projs.forEach(p => {
-        const n=p.name.toLowerCase();
-        let key = n.includes('sheet pile')||n.includes('mlion') ? 'sheetPile'
-                : n.includes('welded')||n.includes('youfa')||n.includes('pipe') ? 'weldedPipe'
-                : 'ppgl';
-        cats[key].mt += weightToMT(p.totalWeight);
+      const key = p.category ? p.category : classifyByName(p.name);
+      if (!cats[key]) return;
+      cats[key].mt += weightToMT(p.totalWeight);
     });
   });
-  return Object.values(cats);
+
+  // Kembalikan hanya kategori yang punya data
+  return Object.values(cats).filter(c => c.margin > 0 || c.mt > 0);
 }
 
 function getCustomerData() {
@@ -381,7 +401,7 @@ function buildAnalytics() {
   const mpM = document.getElementById('mini-prod-margin');
   if(mpM) mpM.innerHTML = `
     <div class="mini-highlight" style="color:var(--ok)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">YTD · 3 kategori produk</div>
+    <div class="mini-sub">YTD · ${prodCats.length} kategori produk</div>
     <div class="mini-badges">
       ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}22;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
     </div>`;

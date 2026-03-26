@@ -18,6 +18,31 @@ const pool = new Pool({
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const COLORS = ['#f59e0b', '#a78bfa', '#22d3ee', '#4ade80', '#fb923c', '#818cf8', '#38bdf8'];
 
+// ── Detect product category from material code ──────────────────────────────
+// Dipake saat build QTY_DATA supaya chart bisa map MT per kategori
+// dari material aktual di ps_items, bukan dari nama project saja.
+function detectCategory(materialCode) {
+  const m = (materialCode || '').toLowerCase().trim();
+  const prefix = m.includes('-') ? m.split('-')[0].trim() : '';
+
+  // Prioritas 1: prefix kode material (paling reliable)
+  if (prefix === 'sp' || prefix === 'sh')               return 'sheetPile';
+  if (prefix.startsWith('gi'))                          return 'gi';
+  if (prefix.startsWith('gl') && prefix !== 'gla')      return 'gl';
+  if (prefix.startsWith('ppgl'))                        return 'ppgl';
+  if (prefix.startsWith('erw'))                         return 'erwPipe';
+
+  // Prioritas 2: keyword dalam deskripsi material
+  if (m.includes('sheet pile') || m.includes('sy295') || m.includes('sy390')) return 'sheetPile';
+  if (m.includes('ppgl') || m.includes('sssc'))         return 'ppgl';
+  if (m.includes('az100') || m.includes('galvalume'))   return 'ppgl';
+  if (m.includes('galvanized'))                         return 'gi';
+  if (m.includes('erw'))                                return 'erwPipe';
+  if (m.includes('sni 2013') || m.includes('seamless') || m.includes('pipe')) return 'weldedPipe';
+
+  return null; // unknown — fallback ke name-match di frontend
+}
+
 // ============================================================================
 // 1. GET DATA: Fetch everything for the dashboard from PostgreSQL
 // ============================================================================
@@ -84,10 +109,19 @@ app.get('/api/data', async (req, res) => {
       const items = psItemsRes.rows.filter(i => i.ps_number === header.ps_number);
       let totalKg = 0, totalQty = 0, unit = 'pcs';
 
+      // Deteksi kategori dari material pertama yang berhasil dikenali
+      let detectedCategory = null;
+
       const products = items.map(item => {
         totalKg += parseFloat(item.total_weight_kg || 0);
         totalQty += parseFloat(item.qty_val || 0);
         if(item.qty_unit) unit = item.qty_unit.trim();
+
+        // Coba detect dari material code item
+        if (!detectedCategory) {
+          detectedCategory = detectCategory(item.material);
+        }
+
         return {
           name: `${item.material} ${item.size ? '('+item.size+')' : ''}`.trim(),
           qty: `${parseFloat(item.qty_val).toLocaleString('id-ID')} ${item.qty_unit}`,
@@ -100,6 +134,10 @@ app.get('/api/data', async (req, res) => {
         color: COLORS[index % COLORS.length], customer: header.customer_name,
         totalQty: `${totalQty.toLocaleString('id-ID')} ${unit}`,
         totalWeight: `${totalKg.toLocaleString('id-ID')} KG (${Math.round(totalKg/1000).toLocaleString('id-ID')} MT)`,
+        // 'category' dipakai buildChart() di frontend sebagai override
+        // supaya project seperti 'Arsen 55' (GI) tetap masuk kategori yang benar
+        // meski nama projectnya tidak mengandung keyword 'gi'
+        category: detectedCategory,
         products: products
       });
     });
