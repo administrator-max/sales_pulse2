@@ -371,6 +371,15 @@ function parseProjectSheetData(lines) {
   }
 
   // ── Summary section ──
+  // PENTING: Beberapa PS punya biaya tambahan (Port Charges, KSO, Insurance, dll)
+  // yang mengurangi Margin menjadi Net Margin.
+  // Contoh LSJ: Margin=1.218.882.000 tapi Net Margin=826.331.311 setelah port charges.
+  // Kita harus pakai Net Margin sebagai angka final, bukan Margin kotor.
+  // Strategi: scan dulu seluruh section, simpan semua nilai, pakai Net Margin jika ada.
+  let rawMargin = 0, rawMarginPct = 0;
+  let netMargin = 0, netMarginPct = 0;
+  let grossMargin = 0, grossMarginPct = 0;
+
   for (let i = rowIndex; i < lines.length; i++) {
     const row   = lines[i];
     if (!row) continue;
@@ -383,12 +392,27 @@ function parseProjectSheetData(lines) {
     if (label === 'Purchase') {
       header.purchase = Math.abs(cleanNum(get(row, 9)));
     }
+    // Margin kotor (sebelum port charges / biaya tambahan)
     if (label === 'Margin') {
-      header.margin    = cleanNum(get(row, 9));
-      header.marginPct = cleanNum(get(row, 11));
+      rawMargin    = cleanNum(get(row, 9));
+      rawMarginPct = cleanNum(get(row, 11));
     }
-    if (label === 'Net Margin') break;
+    // Gross Margin (setelah Total Cost dikurangi)
+    if (label === 'Gross Margin') {
+      grossMargin    = cleanNum(get(row, 9));
+      grossMarginPct = cleanNum(get(row, 11));
+    }
+    // Net Margin = angka paling final (setelah semua biaya)
+    if (label === 'Net Margin') {
+      netMargin    = cleanNum(get(row, 9));
+      netMarginPct = cleanNum(get(row, 11));
+      break; // tidak ada lagi setelah Net Margin
+    }
   }
+
+  // Prioritas: Net Margin > Gross Margin > Margin kotor
+  header.margin    = netMargin    || grossMargin    || rawMargin;
+  header.marginPct = netMarginPct || grossMarginPct || rawMarginPct;
 
   return { header, items };
 }
