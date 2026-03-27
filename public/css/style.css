@@ -55,7 +55,8 @@ header {
 .kpi-l { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
 .kpi-v { font-family:Barlow Condensed,sans-serif; font-size:32px; font-weight:700; line-height:1; color:var(--kpi-c, var(--text)); }
 .kpi-s { font-size:11px; color:var(--muted2); margin-top:5px; }
-.kpi-delta { position:absolute; top:16px; right:16px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; }
+.kpi-delta { font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; }
+
 .delta-good { background:rgba(74,222,128,0.15); color:var(--ok); }
 .delta-bad  { background:rgba(244,63,94,0.15);  color:var(--over); }
 .delta-na   { background:var(--s3); color:var(--muted); }
@@ -340,4 +341,68 @@ footer { padding: 20px; font-size: 11px; color: var(--muted); text-align: center
 }
 #delete-ps-overlay.open > div {
   transform: translateY(0) scale(1) !important;
+}
+
+/* ── Upload Submit Button States ────────────────────────────── */
+.upload-submit-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 20px; border-radius: 7px;
+  font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 700;
+  border: none; transition: all 0.2s; cursor: not-allowed;
+  background: rgba(34,211,238,0.15); color: rgba(34,211,238,0.4);
+}
+.upload-submit-btn.ready {
+  background: linear-gradient(135deg, #0e9ab5, #0d7a91);
+  color: #fff; cursor: pointer;
+  box-shadow: 0 0 18px rgba(34,211,238,0.25);
+}
+.upload-submit-btn.ready:hover {
+  background: linear-gradient(135deg, #12b0ce, #0e8aa8);
+}
+.upload-submit-btn.loading {
+  background: rgba(34,211,238,0.2); color: rgba(34,211,238,0.6);
+  cursor: wait; animation: upload-pulse 1.2s infinite;
+}
+.upload-submit-btn.success {
+  background: linear-gradient(135deg, #15803d, #166534);
+  color: #fff; cursor: default;
+}
+
+/* ── Dashboard Filter Bar ───────────────────────────────────── */
+.month-filter-pill {
+  padding: 3px 10px; border-radius: 20px;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.5px; cursor: pointer; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted2); transition: all 0.15s;
+}
+.month-filter-pill:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+.month-filter-pill.active {
+  background: rgba(34,211,238,0.15); color: #22d3ee;
+  border-color: rgba(34,211,238,0.4);
+}
+
+/* Product Summary Modal open state */
+#product-summary-overlay.open {
+  display: flex !important;
+}
+
+/* ── Month Dropdown ─────────────────────────────────────────── */
+.month-dd-item {
+  width: 100%; padding: 6px 10px; border: none; border-radius: 6px;
+  background: transparent; color: var(--muted2);
+  font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.5px; cursor: pointer; text-align: left; transition: all 0.12s;
+}
+.month-dd-item:hover { background: var(--s3); color: var(--text); }
+.month-dd-item.active { background: rgba(34,211,238,0.15); color: #22d3ee; }
+.month-dd-item[data-month="-1"] { text-align: center; font-size: 12px; }
+
+/* ── Chart responsive ───────────────────────────────────────── */
+#mainChart { width: 100% !important; }
+
+/* Achievement bar compact */
+.wf-row { margin-bottom: 8px; }
+
+@media(max-width:900px) {
+  #analytics-grid { grid-template-columns: 1fr; }
 }

@@ -34,10 +34,88 @@ let QTY_DATA = {};
 let selectedMonth = NOW_MONTH <= 11 ? NOW_MONTH : 11;
 let SP_ACTIVE_REV = Array(12).fill(0);
 
+// ── Dashboard filter state ───────────────────────────────────────────────────
+let FILTER_YEAR  = new Date().getFullYear();
+let FILTER_MONTH = -1; // -1 = all months, 0-11 = specific month
+const _MS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const _MF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function shiftFilterYear(delta) {
+  FILTER_YEAR += delta;
+  const lbl = document.getElementById('filter-year-label');
+  if (lbl) lbl.textContent = FILTER_YEAR;
+  _updateFilterBadge();
+  // Re-fetch data dari server dengan tahun baru
+  initApp();
+}
+
+function setFilterMonth(month) {
+  FILTER_MONTH = month;
+  // Update dropdown item active state
+  document.querySelectorAll('.month-dd-item').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.month) === month);
+  });
+  // Update button label
+  const lbl = document.getElementById('filter-month-label');
+  if (lbl) lbl.textContent = month === -1 ? 'All Months' : _MF[month];
+  // Close dropdown
+  const dd = document.getElementById('filter-month-dropdown');
+  if (dd) dd.style.display = 'none';
+  _updateFilterBadge();
+  refreshAll();
+}
+
+function toggleMonthDropdown() {
+  const dd = document.getElementById('filter-month-dropdown');
+  if (!dd) return;
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  // Close on outside click
+  if (dd.style.display === 'block') {
+    setTimeout(() => {
+      const handler = (e) => {
+        if (!dd.contains(e.target) && e.target.id !== 'filter-month-btn' && !document.getElementById('filter-month-btn').contains(e.target)) {
+          dd.style.display = 'none';
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  }
+}
+
+function _updateFilterBadge() {
+  const badge     = document.getElementById('filter-active-badge');
+  const resetBtn  = document.getElementById('filter-reset-btn');
+  const tableTag  = document.getElementById('table-filter-label');
+  const filterBtn = document.getElementById('filter-month-btn');
+
+  const isFiltered = FILTER_MONTH !== -1;
+  const labelText  = isFiltered ? (_MS[FILTER_MONTH] + ' ' + FILTER_YEAR) : ('All · ' + FILTER_YEAR);
+
+  if (badge)    { badge.style.display = isFiltered ? 'inline-block' : 'none'; badge.textContent = labelText; }
+  if (resetBtn) { resetBtn.style.display = isFiltered ? 'block' : 'none'; }
+  if (tableTag) { tableTag.textContent = isFiltered ? (_MF[FILTER_MONTH] + ' ' + FILTER_YEAR) : ('All ' + FILTER_YEAR); }
+  // Highlight the button when filtered
+  if (filterBtn) {
+    filterBtn.style.borderColor = isFiltered ? 'rgba(34,211,238,0.5)' : 'var(--border2)';
+    filterBtn.style.color       = isFiltered ? '#22d3ee' : 'var(--text)';
+  }
+}
+
+function openProductSummaryModal() {
+  const el = document.getElementById('product-summary-overlay');
+  if (el) el.style.display = 'flex';
+}
+
+function closeProductSummaryModal() {
+  const el = document.getElementById('product-summary-overlay');
+  if (el) el.style.display = 'none';
+}
+
 // ── INIT & FETCH FROM DATABASE ──
 async function initApp() {
   try {
-    const res = await fetch('/api/data');
+    const res = await fetch('/api/data?year=' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : new Date().getFullYear()));
     if (res.ok) {
       const data = await res.json();
       BUDGET = data.BUDGET || BUDGET;
@@ -64,7 +142,7 @@ async function persist() {
     await fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ACTUAL, PLAN_REVISIONS })
+      body: JSON.stringify({ ACTUAL, PLAN_REVISIONS, year: FILTER_YEAR })
     });
     showToast("Saved to Database ✓");
   } catch (e) {

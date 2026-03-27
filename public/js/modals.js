@@ -174,10 +174,63 @@ function buildAnalyticsDetail(type) {
 // ── BUDGET EDIT LOGIC ──
 let activeBudgetMonth = 0;
 
+let BUDGET_YEAR = new Date().getFullYear();
+
 function openBudgetModal() {
   activeBudgetMonth = 0;
+  BUDGET_YEAR = typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : new Date().getFullYear();
+  const lbl = document.getElementById('budget-year-label');
+  if (lbl) lbl.textContent = BUDGET_YEAR;
   renderBudgetForm();
   document.getElementById('budget-modal-overlay').classList.add('open');
+}
+
+async function shiftBudgetYear(delta) {
+  BUDGET_YEAR += delta;
+
+  // Update label di modal
+  const lbl = document.getElementById('budget-year-label');
+  if (lbl) lbl.textContent = BUDGET_YEAR;
+
+  // Sync dengan filter dashboard
+  if (typeof FILTER_YEAR !== 'undefined') {
+    FILTER_YEAR = BUDGET_YEAR;
+    const fl = document.getElementById('filter-year-label');
+    if (fl) fl.textContent = FILTER_YEAR;
+    if (typeof _updateFilterBadge === 'function') _updateFilterBadge();
+  }
+
+  // Tampilkan loading state di form
+  const bgtMargin  = document.getElementById('bgt-margin');
+  const bgtRevenue = document.getElementById('bgt-revenue');
+  if (bgtMargin)  bgtMargin.style.opacity  = '0.4';
+  if (bgtRevenue) bgtRevenue.style.opacity = '0.4';
+
+  // Re-fetch budget data untuk tahun baru dari server
+  try {
+    const res  = await fetch('/api/data?year=' + BUDGET_YEAR);
+    if (res.ok) {
+      const data = await res.json();
+      // Update BUDGET global state dengan data tahun baru
+      if (data.BUDGET) {
+        BUDGET.margin  = data.BUDGET.margin  || Array(12).fill(0);
+        BUDGET.revenue = data.BUDGET.revenue || Array(12).fill(0);
+        BUDGET.qty     = data.BUDGET.qty     || BUDGET.qty;
+      } else {
+        // Tahun baru belum ada data → reset ke nol
+        BUDGET.margin  = Array(12).fill(0);
+        BUDGET.revenue = Array(12).fill(0);
+        Object.keys(BUDGET.qty).forEach(k => { BUDGET.qty[k] = Array(12).fill(0); });
+      }
+    }
+  } catch(e) {
+    console.warn('Budget fetch failed:', e);
+  }
+
+  // Restore opacity dan render form dengan data baru
+  if (bgtMargin)  bgtMargin.style.opacity  = '1';
+  if (bgtRevenue) bgtRevenue.style.opacity = '1';
+  renderBudgetForm();
 }
 
 function closeBudgetModal(e, force) {
@@ -225,9 +278,9 @@ async function saveBudgetToDB() {
     await fetch('/api/budget', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ BUDGET })
+      body: JSON.stringify({ BUDGET, year: BUDGET_YEAR })
     });
-    showToast('Budget targets updated ✓');
+    showToast('Budget ' + BUDGET_YEAR + ' updated ✓');
     closeBudgetModal(null, true);
     refreshAll();
   } catch(e) {
@@ -264,28 +317,50 @@ function openModal(idx) {
     const colors=['#f59e0b','#a78bfa','#22d3ee','#4ade80','#fb923c'];
     let html=`<div class="modal-ps-title">📋 PS Consolidated · ${monthLabel} · ${chains.length} Proyek</div>`;
     chains.forEach((c, i) => {
-      const col = colors[i%colors.length];
+      const col  = colors[i%colors.length];
+      const subs = c.subsidiaries || []; // per-PS breakdown untuk delete
+      const isMulti = subs.length > 1;
+
+      // Tombol delete: jika single PS pakai c.ps langsung,
+      // jika multi (intercompany) render satu tombol per subsidiary
+      const deleteButtons = isMulti
+        ? subs.map(s => {
+            const safePsNum  = s.ps.replace(/'/g, "\\'");
+            const safePsName = c.name.replace(/'/g, "\\'");
+            return `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:var(--s3);border-radius:6px;">
+              <span style="font-size:10px;color:var(--muted2);flex:1;">${s.ps} · ${s.currency} · ${s.pct.toFixed(2)}%</span>
+              <span style="font-size:11px;font-weight:700;color:var(--ok);">IDR ${s.marginMIDR.toFixed(2)} M</span>
+              <button onclick="confirmDeletePS('${safePsNum}','${safePsName}',${idx})"
+                title="Hapus ${s.ps}"
+                style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;"
+                onmouseover="this.style.background='rgba(244,63,94,0.22)'"
+                onmouseout="this.style.background='rgba(244,63,94,0.1)'">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>`;
+          }).join('')
+        : `<button onclick="confirmDeletePS('${c.ps.replace(/'/g,"\\'")}','${c.name.replace(/'/g,"\\'")}',${idx})"
+             title="Hapus PS ini"
+             style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;flex-shrink:0;transition:all 0.15s;"
+             onmouseover="this.style.background='rgba(244,63,94,0.22)'"
+             onmouseout="this.style.background='rgba(244,63,94,0.1)'">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+           </button>`;
+
       html += `
         <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${col}">${c.name} · ${c.ps}</div>
+            <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${col}">${c.name}${isMulti ? ' · 🔗 ' + subs.length + ' Sub' : ' · ' + c.ps}</div>
             <div style="display:flex;align-items:center;gap:8px;">
-              <div style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct}%</div>
-              <button onclick="confirmDeletePS('${c.ps.replace(/'/g,"\\'")}', '${c.name.replace(/'/g,"\\'")}', ${idx})"
-                title="Hapus PS ini"
-                style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;flex-shrink:0;transition:all 0.15s;"
-                onmouseover="this.style.background='rgba(244,63,94,0.22)'"
-                onmouseout="this.style.background='rgba(244,63,94,0.1)'">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                </svg>
-              </button>
+              <div style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct.toFixed(2)}%</div>
+              ${!isMulti ? deleteButtons : ''}
             </div>
           </div>
           <div class="modal-ps-grid">
             <div class="modal-ps-item"><div class="modal-ps-label">Revenue</div><div class="modal-ps-val" style="color:var(--actual);font-size:13px">IDR ${c.revenue.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${c.customer}</div></div>
-            <div class="modal-ps-item"><div class="modal-ps-label">Net Margin</div><div class="modal-ps-val" style="color:var(--ok);font-size:13px">IDR ${c.margin.toFixed(2)} M</div><div class="modal-ps-sub">${c.pct}% consolidated</div></div>
+            <div class="modal-ps-item"><div class="modal-ps-label">Net Margin</div><div class="modal-ps-val" style="color:var(--ok);font-size:13px">IDR ${c.margin.toFixed(2)} M</div><div class="modal-ps-sub">${c.pct.toFixed(2)}% consolidated</div></div>
           </div>
+          ${isMulti ? '<div style="margin-top:6px;">' + deleteButtons + '</div>' : ''}
         </div>`;
     });
     html+=`<div style="background:rgba(34,211,238,0.06);border-radius:6px;padding:10px 12px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);margin-bottom:8px;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--actual)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--ok)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;

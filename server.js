@@ -48,11 +48,14 @@ function detectCategory(materialCode) {
 // ============================================================================
 app.get('/api/data', async (req, res) => {
   try {
-    const budgetsRes = await pool.query('SELECT * FROM monthly_budgets ORDER BY month_idx ASC');
-    const actualsRes = await pool.query('SELECT * FROM monthly_actuals ORDER BY month_idx ASC');
-    const plansRes = await pool.query('SELECT * FROM plan_revisions ORDER BY month_idx ASC, id ASC');
-    const psHeadersRes = await pool.query('SELECT * FROM ps_headers ORDER BY po_date ASC');
-    const psItemsRes = await pool.query('SELECT * FROM ps_items ORDER BY id ASC');
+    // Filter by year — default 2026 jika tidak ada query param
+    const year = parseInt(req.query.year) || 2026;
+
+    const budgetsRes  = await pool.query('SELECT * FROM monthly_budgets  WHERE year = $1 ORDER BY month_idx ASC', [year]);
+    const actualsRes  = await pool.query('SELECT * FROM monthly_actuals  WHERE year = $1 ORDER BY month_idx ASC', [year]);
+    const plansRes    = await pool.query('SELECT * FROM plan_revisions   WHERE year = $1 ORDER BY month_idx ASC, id ASC', [year]);
+    const psHeadersRes= await pool.query('SELECT * FROM ps_headers WHERE dashboard_year = $1 ORDER BY po_date ASC', [year]);
+    const psItemsRes  = await pool.query('SELECT * FROM ps_items ORDER BY id ASC');
 
     // 1. Build BUDGET
     const BUDGET = {
@@ -89,56 +92,88 @@ app.get('/api/data', async (req, res) => {
     });
 
     // 4. Build PS_CHAINS and QTY_DATA
+    // PS dengan project_name + dashboard_month_idx sama dikonsolidasi jadi SATU chain.
+    // Margin tiap PS sudah tersimpan dalam IDR (konversi FX dilakukan saat upload).
     const PS_CHAINS = {};
     const QTY_DATA = {};
     MONTH_KEYS.forEach(m => { PS_CHAINS[m] = []; QTY_DATA[m] = []; });
 
-    psHeadersRes.rows.forEach((header, index) => {
+    // Group ps_headers by (project_name, dashboard_month_idx)
+    const projectGroups = {};
+    psHeadersRes.rows.forEach(header => {
       const mIdx = header.dashboard_month_idx;
       if (mIdx < 0 || mIdx > 11) return;
-      const mKey = MONTH_KEYS[mIdx];
-      
+      const groupKey = (header.project_name || header.ps_number) + '__' + mIdx;
+      if (!projectGroups[groupKey]) {
+        projectGroups[groupKey] = {
+          mIdx, mKey: MONTH_KEYS[mIdx],
+          projectName: header.project_name || header.ps_number,
+          customer: header.customer_name,
+          headers: []
+        };
+      }
+      projectGroups[groupKey].headers.push(header);
+    });
+
+    let colorIdx = 0;
+    Object.values(projectGroups).forEach(group => {
+      const { mIdx, mKey, projectName, customer, headers } = group;
+
+      // Consolidated: SUM margin & revenue dari semua PS dalam group
+      const totalMarginIDR  = headers.reduce((s, h) => s + parseFloat(h.margin || 0), 0);
+      const totalRevenueIDR = headers.reduce((s, h) => s + parseFloat(h.sales_revenue || 0), 0);
+      const totalPct = totalRevenueIDR > 0
+        ? parseFloat((totalMarginIDR / totalRevenueIDR * 100).toFixed(4)) : 0;
+
       PS_CHAINS[mKey].push({
-        name: header.project_name || header.ps_number,
-        ps: header.ps_number, customer: header.customer_name,
-        revenue: parseFloat((header.sales_revenue / 1000000).toFixed(3)), 
-        margin: parseFloat((header.margin / 1000000).toFixed(3)),
-        pct: parseFloat(header.margin_percentage), note: header.notes
+        name:     projectName,
+        ps:       headers.map(h => h.ps_number).join(' · '),
+        customer: customer,
+        revenue:  parseFloat((totalRevenueIDR / 1000000).toFixed(3)),
+        margin:   parseFloat((totalMarginIDR  / 1000000).toFixed(3)),
+        pct:      totalPct,
+        note:     headers.map(h => h.notes).filter(Boolean).join(' | '),
+        // Subsidiaries breakdown untuk ditampilkan di modal detail
+        subsidiaries: headers.map(h => ({
+          ps:           h.ps_number,
+          sub:          h.subsidiary || '',
+          currency:     h.currency   || 'IDR',
+          fxRate:       parseFloat(h.fx_rate || 1),
+          marginNative: parseFloat(h.net_margin_native || h.margin || 0),
+          marginIDR:    parseFloat(h.margin || 0),
+          marginMIDR:   parseFloat((h.margin / 1000000).toFixed(3)),
+          pct:          parseFloat(h.margin_percentage || 0),
+        })),
       });
 
-      const items = psItemsRes.rows.filter(i => i.ps_number === header.ps_number);
+      // QTY_DATA: gabungkan items dari semua PS dalam group ini
       let totalKg = 0, totalQty = 0, unit = 'pcs';
-
-      // Deteksi kategori dari material pertama yang berhasil dikenali
       let detectedCategory = null;
+      const allProducts = [];
 
-      const products = items.map(item => {
-        totalKg += parseFloat(item.total_weight_kg || 0);
-        totalQty += parseFloat(item.qty_val || 0);
-        if(item.qty_unit) unit = item.qty_unit.trim();
-
-        // Coba detect dari material code item
-        if (!detectedCategory) {
-          detectedCategory = detectCategory(item.material);
-        }
-
-        return {
-          name: `${item.material} ${item.size ? '('+item.size+')' : ''}`.trim(),
-          qty: `${parseFloat(item.qty_val).toLocaleString('id-ID')} ${item.qty_unit}`,
-          weight: `${parseFloat(item.total_weight_kg).toLocaleString('id-ID')} KG`
-        };
+      headers.forEach(header => {
+        const items = psItemsRes.rows.filter(i => i.ps_number === header.ps_number);
+        items.forEach(item => {
+          totalKg  += parseFloat(item.total_weight_kg || 0);
+          totalQty += parseFloat(item.qty_val || 0);
+          if (item.qty_unit) unit = item.qty_unit.trim();
+          if (!detectedCategory) detectedCategory = detectCategory(item.material);
+          allProducts.push({
+            name:   (item.material + (item.size ? ' ('+item.size+')' : '')).trim(),
+            qty:    parseFloat(item.qty_val).toLocaleString('id-ID') + ' ' + item.qty_unit,
+            weight: parseFloat(item.total_weight_kg).toLocaleString('id-ID') + ' KG'
+          });
+        });
       });
 
       QTY_DATA[mKey].push({
-        name: header.project_name || header.ps_number,
-        color: COLORS[index % COLORS.length], customer: header.customer_name,
-        totalQty: `${totalQty.toLocaleString('id-ID')} ${unit}`,
-        totalWeight: `${totalKg.toLocaleString('id-ID')} KG (${Math.round(totalKg/1000).toLocaleString('id-ID')} MT)`,
-        // 'category' dipakai buildChart() di frontend sebagai override
-        // supaya project seperti 'Arsen 55' (GI) tetap masuk kategori yang benar
-        // meski nama projectnya tidak mengandung keyword 'gi'
-        category: detectedCategory,
-        products: products
+        name:        projectName,
+        color:       COLORS[colorIdx++ % COLORS.length],
+        customer:    customer,
+        totalQty:    totalQty.toLocaleString('id-ID') + ' ' + unit,
+        totalWeight: totalKg.toLocaleString('id-ID') + ' KG (' + Math.round(totalKg/1000).toLocaleString('id-ID') + ' MT)',
+        category:    detectedCategory,
+        products:    allProducts,
       });
     });
 
@@ -161,13 +196,15 @@ app.post('/api/budget', async (req, res) => {
       const qtyJson = {};
       Object.keys(BUDGET.qty).forEach(k => { qtyJson[k] = BUDGET.qty[k][i]; });
       
+      // budget_year dikirim dari frontend (BUDGET_YEAR dari modal)
+      const bYear = req.body.year || 2026;
       await client.query(`
-        INSERT INTO monthly_budgets (month_idx, margin, revenue, qty)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (month_idx) DO UPDATE SET
-          margin = EXCLUDED.margin, revenue = EXCLUDED.revenue, 
+        INSERT INTO monthly_budgets (month_idx, year, margin, revenue, qty)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (month_idx, year) DO UPDATE SET
+          margin = EXCLUDED.margin, revenue = EXCLUDED.revenue,
           qty = EXCLUDED.qty, updated_at = CURRENT_TIMESTAMP
-      `, [i, BUDGET.margin[i], BUDGET.revenue[i], qtyJson]);
+      `, [i, bYear, BUDGET.margin[i], BUDGET.revenue[i], qtyJson]);
     }
     await client.query('COMMIT');
     res.json({ success: true });
@@ -189,13 +226,14 @@ app.post('/api/data', async (req, res) => {
   try {
     await client.query('BEGIN');
     for (let i = 0; i < 12; i++) {
+      const aYear = req.body.year || 2026;
       await client.query(`
-        INSERT INTO monthly_actuals (month_idx, actual_margin, plan_margin, revenue, notes)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (month_idx) DO UPDATE SET
+        INSERT INTO monthly_actuals (month_idx, year, actual_margin, plan_margin, revenue, notes)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (month_idx, year) DO UPDATE SET
           actual_margin = EXCLUDED.actual_margin, plan_margin = EXCLUDED.plan_margin,
           revenue = EXCLUDED.revenue, notes = EXCLUDED.notes, updated_at = CURRENT_TIMESTAMP
-      `, [i, ACTUAL.margin[i], ACTUAL.plan[i], ACTUAL.revenue[i], ACTUAL.notes[i]]);
+      `, [i, aYear, ACTUAL.margin[i], ACTUAL.plan[i], ACTUAL.revenue[i], ACTUAL.notes[i]]);
     }
 
     await client.query('DELETE FROM plan_revisions');
@@ -220,30 +258,54 @@ app.post('/api/data', async (req, res) => {
 // ============================================================================
 // 4. POST PROJECT SHEET: Handle Parsed CSV Upload
 // ============================================================================
+// ============================================================================
+// 4. POST PROJECT SHEET (single): simpan satu PS, FX-convert margin ke IDR
+// ============================================================================
 app.post('/api/project-sheet', async (req, res) => {
   const { header, items } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Hitung monthIdx dari PO Date
     let monthIdx = 0;
     if (header.poDate) {
       const parts = header.poDate.split('/');
-      if (parts.length >= 2) monthIdx = parseInt(parts[1]) - 1; 
+      if (parts.length >= 2) monthIdx = parseInt(parts[1]) - 1;
     }
 
+    // margin yang disimpan = Net Margin dalam IDR (sudah di-convert FX di frontend)
+    // net_margin_native = nilai dalam currency asli file (USD/IDR/SGD)
+    // fx_rate = kurs yang dipakai konversi
     await client.query(`
       INSERT INTO ps_headers (
-        ps_number, dashboard_month_idx, project_code, project_name, subsidiary, 
-        customer_name, supplier_name, currency, sales_revenue, purchase_cost, margin, margin_percentage
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ps_number, dashboard_month_idx, project_code, project_name, subsidiary,
+        customer_name, supplier_name, currency, fx_rate, net_margin_native,
+        sales_revenue, purchase_cost, margin, margin_percentage, dashboard_year
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT (ps_number) DO UPDATE SET
-        dashboard_month_idx = EXCLUDED.dashboard_month_idx, project_name = EXCLUDED.project_name,
-        customer_name = EXCLUDED.customer_name, sales_revenue = EXCLUDED.sales_revenue,
-        margin = EXCLUDED.margin, margin_percentage = EXCLUDED.margin_percentage
+        dashboard_month_idx  = EXCLUDED.dashboard_month_idx,
+        dashboard_year       = EXCLUDED.dashboard_year,
+        project_name         = EXCLUDED.project_name,
+        customer_name        = EXCLUDED.customer_name,
+        sales_revenue        = EXCLUDED.sales_revenue,
+        purchase_cost        = EXCLUDED.purchase_cost,
+        currency             = EXCLUDED.currency,
+        fx_rate              = EXCLUDED.fx_rate,
+        net_margin_native    = EXCLUDED.net_margin_native,
+        margin               = EXCLUDED.margin,
+        margin_percentage    = EXCLUDED.margin_percentage
     `, [
       header.psNumber, monthIdx, header.projectCode, header.projectName, header.subsidiary,
-      header.customerName, header.supplierName, header.currency, 
-      header.sales, header.purchase, header.margin, header.marginPct
+      header.customerName, header.supplierName,
+      header.currency    || 'IDR',
+      header.fxToIDR     || 1,
+      header.netMarginNative || header.margin,
+      header.salesIDR    || header.sales,
+      header.purchase,
+      header.marginIDR   || header.margin,   // margin in IDR (after FX)
+      header.marginPct,
+      header.dashboardYear || new Date().getFullYear(),
     ]);
 
     await client.query('DELETE FROM ps_items WHERE ps_number = $1', [header.psNumber]);
@@ -251,50 +313,41 @@ app.post('/api/project-sheet', async (req, res) => {
       await client.query(`
         INSERT INTO ps_items (
           ps_number, item_no, material, size, length, qty_val, qty_unit, total_weight_kg, purchase_price_kg
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       `, [
-        header.psNumber, item.no, item.material, item.size, item.length, 
+        header.psNumber, item.no, item.material, item.size, item.length,
         item.qtyVal, item.qtyUnit, item.totalWeight, item.purchasePrice
       ]);
     }
 
-    // ── AUTO-AGGREGATE: Sum semua PS di bulan ini → update monthly_actuals ──
-    // ps_headers.margin disimpan dalam IDR (raw).
-    // monthly_actuals.actual_margin pakai satuan MIDR (juta IDR).
-    // Jadi kita bagi 1,000,000 saat aggregate.
-    const aggRes = await client.query(`
-      SELECT
-        COALESCE(SUM(margin), 0)        AS total_margin,
-        COALESCE(SUM(sales_revenue), 0) AS total_revenue
-      FROM ps_headers
-      WHERE dashboard_month_idx = $1
-    `, [monthIdx]);
-
-    const totalMarginMIDR  = parseFloat(aggRes.rows[0].total_margin)  / 1_000_000;
-    const totalRevenueMIDR = parseFloat(aggRes.rows[0].total_revenue) / 1_000_000;
-
+    // Re-aggregate monthly_actuals untuk bulan ini
+    const psYear = header.dashboardYear || new Date().getFullYear();
+    const agg = await client.query(`
+      SELECT COALESCE(SUM(margin),0) AS m, COALESCE(SUM(sales_revenue),0) AS r
+      FROM ps_headers WHERE dashboard_month_idx = $1 AND dashboard_year = $2
+    `, [monthIdx, psYear]);
+    const mMIDR = parseFloat(agg.rows[0].m) / 1e6;
+    const rMIDR = parseFloat(agg.rows[0].r) / 1e6;
     await client.query(`
-      INSERT INTO monthly_actuals (month_idx, actual_margin, revenue)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (month_idx) DO UPDATE SET
+      INSERT INTO monthly_actuals (month_idx, year, actual_margin, revenue)
+      VALUES ($1,$2,$3,$4)
+      ON CONFLICT (month_idx, year) DO UPDATE SET
         actual_margin = EXCLUDED.actual_margin,
         revenue       = EXCLUDED.revenue,
         updated_at    = CURRENT_TIMESTAMP
-    `, [monthIdx, totalMarginMIDR, totalRevenueMIDR]);
+    `, [monthIdx, psYear, mMIDR, rMIDR]);
 
     await client.query('COMMIT');
-    res.json({
-      success: true,
-      message: `Imported ${header.psNumber} successfully.`,
-      aggregated: { monthIdx, totalMarginMIDR, totalRevenueMIDR }
-    });
+    res.json({ success: true, message: `Imported ${header.psNumber}.`, monthIdx, mMIDR, rMIDR });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: 'Failed to import Project Sheet' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to import Project Sheet: ' + err.message });
   } finally {
     client.release();
   }
 });
+
 
 app.listen(port, () => console.log(`Server running on port ${port}`));
 // ============================================================================

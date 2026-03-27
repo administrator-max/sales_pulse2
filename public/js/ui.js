@@ -4,181 +4,264 @@ let mainChart;
 
 function buildChart() {
   if (mainChart) mainChart.destroy();
-  
-  const budgetQtyMonthly = getBudgetQtyMonthly();
 
-  const catData = PROD_CATS.map(cat => {
-    return MONTH_KEYS.map((mk) => {
-      const projs = QTY_DATA[mk] || [];
-      // Gunakan p.category (dari server, berdasarkan material code) sebagai
-      // primary match. Fallback ke cat.match(p.name) untuk data lama/seeded.
-      const mt = projs
-        .filter(p => p.category ? p.category === cat.key : cat.match(p.name.toLowerCase()))
-        .reduce((s,p) => s + weightToMT(p.totalWeight), 0);
-      return mt > 0 ? mt : null;
-    });
-  });
+  // ── Tentukan bulan yang ditampilkan berdasarkan filter ──────────────────────
+  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+  // Jika filter bulan aktif: hanya tampilkan 1 bulan
+  // Jika All: tampilkan semua 12 bulan
+  const activeIndices = fm === -1
+    ? Array.from({length: 12}, (_, i) => i)
+    : [fm];
 
+  const activeLabels   = activeIndices.map(i => MONTHS[i]);
+  const budgetFiltered = activeIndices.map(i => getBudgetQtyMonthly()[i]);
+
+  // ── Build catData & planData hanya untuk bulan aktif ───────────────────────
   const planQty = getPlanQtyByProduct();
-  const catPlanData = PROD_CATS.map(cat => {
-    return Array(12).fill(null).map((_, mi) => {
-      const v = (planQty[cat.key]||[])[mi] || 0;
+
+  const catData = PROD_CATS.map(cat =>
+    activeIndices.map(i => {
+      const mk    = MONTH_KEYS[i];
+      const projs = QTY_DATA[mk] || [];
+      const mt    = projs
+        .filter(p => p.category ? p.category === cat.key : cat.match(p.name.toLowerCase()))
+        .reduce((s, p) => s + weightToMT(p.totalWeight), 0);
+      return mt > 0 ? mt : null;
+    })
+  );
+
+  const catPlanData = PROD_CATS.map(cat =>
+    activeIndices.map(i => {
+      const v = (planQty[cat.key] || [])[i] || 0;
       return v > 0 ? v : null;
+    })
+  );
+
+  // ── Totals per slot (index dalam activeIndices) ─────────────────────────────
+  const totalActual = activeIndices.map((_, slot) => {
+    let sum = null;
+    catData.forEach(arr => {
+      if (arr[slot] != null) sum = (sum || 0) + arr[slot];
     });
+    return sum;
   });
 
-  const totalActual = Array(12).fill(null);
-  catData.forEach(arr => arr.forEach((v,i)=>{ if(v!=null) totalActual[i]=(totalActual[i]||0)+v; }));
+  const totalPlan = activeIndices.map((_, slot) => {
+    let sum = 0;
+    catPlanData.forEach(arr => { if (arr[slot]) sum += arr[slot]; });
+    return sum;
+  });
 
-  const totalPlan = Array(12).fill(0);
-  catPlanData.forEach(arr => arr.forEach((v,i)=>{ if(v!=null) totalPlan[i]+= v; }));
-
-  const totalCombined = Array(12).fill(null).map((_,i) => {
-    const a = totalActual[i] || 0;
-    const p = totalPlan[i]   || 0;
+  const totalCombined = activeIndices.map((_, slot) => {
+    const a = totalActual[slot] || 0;
+    const p = totalPlan[slot]   || 0;
     return (a + p) > 0 ? (a + p) : null;
   });
 
+  // ── Chart ───────────────────────────────────────────────────────────────────
+  // ── Custom plugin: gambar label % di tengah/atas stacked bar 'actual' ──
+  const pctLabelPlugin = {
+    id: 'pctLabel',
+    afterDraw(chart) {
+      const { ctx } = chart;
+      const actualMeta = chart.data.datasets
+        .map((ds, i) => ({ ds, i }))
+        .filter(({ ds }) => ds.stack === 'actual');
+
+      const slotCount = chart.data.labels.length;
+      for (let slot = 0; slot < slotCount; slot++) {
+        const tot = totalActual[slot];
+        const bgt = budgetFiltered[slot];
+        if (tot == null || tot === 0) continue;
+
+        let yTop = Infinity, yBottom = -Infinity, xCenter = null;
+        actualMeta.forEach(({ i }) => {
+          const meta = chart.getDatasetMeta(i);
+          if (!meta || meta.hidden) return;
+          const bar = meta.data[slot];
+          if (!bar) return;
+          const props = bar.getProps(['x','y','base'], true);
+          if (props.y    < yTop)    yTop    = props.y;
+          if (props.base > yBottom) yBottom = props.base;
+          xCenter = props.x;
+        });
+
+        if (xCenter == null || yTop === Infinity) continue;
+
+        const pct    = (tot / bgt * 100).toFixed(0) + '%';
+        const isOver = tot >= bgt;
+        const color  = isOver ? '#4ade80' : '#fb923c';
+
+        // Selalu tampilkan di ATAS puncak bar
+        const yPos = yTop - 6;
+
+        ctx.save();
+        ctx.font         = '800 13px "Barlow Condensed", sans-serif';
+        ctx.fillStyle    = color;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.shadowColor  = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur   = 4;
+        ctx.fillText(pct, xCenter, yPos);
+        ctx.restore();
+      }
+    }
+  };
+
   mainChart = new Chart(chartCtx, {
-    type:'bar',
+    type: 'bar',
     data: {
-      labels: MONTHS,
+      labels: activeLabels,
       datasets: [
+        // Budget bars (outline only)
         {
-          label:'Budget',
-          type:'bar',
-          data: budgetQtyMonthly.slice(),
-          backgroundColor:'rgba(255,255,255,0.0)',
-          borderColor:'rgba(255,255,255,0.30)',
+          label: 'Budget',
+          type: 'bar',
+          data: budgetFiltered,
+          backgroundColor: 'rgba(255,255,255,0.0)',
+          borderColor: 'rgba(255,255,255,0.30)',
           borderWidth: 2,
           borderRadius: 4,
           borderSkipped: false,
           order: 3,
           stack: 'budget',
-          datalabels:{ display:false }
+          datalabels: { display: false }
         },
+
+        // Actual stacked per kategori — semua label OFF
         ...PROD_CATS.map((cat, ci) => ({
           label: cat.label,
           data: catData[ci],
           backgroundColor: cat.rgba,
           borderColor: 'transparent',
           borderWidth: 0,
-          borderRadius: ci===PROD_CATS.length-1 ? 3 : 0,
+          borderRadius: ci === PROD_CATS.length - 1 ? 3 : 0,
           borderSkipped: false,
           order: 1,
           stack: 'actual',
-          datalabels: ci === PROD_CATS.length-1 ? {
-            anchor:'end', align:'end', offset:4,
-            font:{ family:"'Barlow Condensed',sans-serif", size:11, weight:'700' },
-            color: ctx => {
-              const tot = totalActual[ctx.dataIndex];
-              const bgt = budgetQtyMonthly[ctx.dataIndex];
-              return (tot!=null && tot >= bgt) ? '#4ade80' : '#fb923c';
-            },
-            formatter:(v, ctx) => {
-              const tot = totalActual[ctx.dataIndex];
-              if(tot==null) return null;
-              const pct = (tot / budgetQtyMonthly[ctx.dataIndex] * 100).toFixed(0);
-              return pct + '%';
-            }
-          } : { display:false }
+          datalabels: { display: false }
         })),
+
+        // Plan stacked — label OFF
         ...PROD_CATS.map((cat, ci) => ({
-          label: 'Plan '+cat.label,
+          label: 'Plan ' + cat.label,
           data: catPlanData[ci],
-          backgroundColor: cat.color+'55',
-          borderColor: cat.color+'99',
+          backgroundColor: cat.color + '55',
+          borderColor: cat.color + '99',
           borderWidth: 1,
-          borderDash: [3,3],
-          borderRadius: ci===PROD_CATS.length-1 ? 3 : 0,
+          borderRadius: ci === PROD_CATS.length - 1 ? 3 : 0,
           borderSkipped: false,
           order: 2,
           stack: 'plan',
-          datalabels: ci === PROD_CATS.length-1 ? {
-            anchor:'end', align:'end', offset:4,
-            font:{ family:"'Barlow Condensed',sans-serif", size:11, weight:'700' },
-            color: ctx => {
-              const comb = totalCombined[ctx.dataIndex];
-              const bgt  = budgetQtyMonthly[ctx.dataIndex];
-              return (comb!=null && comb >= bgt) ? '#a78bfa' : '#f59e0b';
-            },
-            formatter:(v, ctx) => {
-              const comb = totalCombined[ctx.dataIndex];
-              if(!comb) return null;
-              const bgt = budgetQtyMonthly[ctx.dataIndex];
-              const pct = (comb / bgt * 100).toFixed(0);
-              return pct + '%';
-            }
-          } : { display:false }
+          datalabels: { display: false }
         })),
+
+        // label % digambar via custom pctLabelPlugin (afterDraw)
       ]
     },
-    options: { 
-      responsive: true, 
-      interaction:{ mode:'index', intersect:false },
-      plugins:{
-        legend:{
-          display:true, position:'top', align:'end',
-          labels:{
-            color:'#94a3b8', font:{size:11}, boxWidth:12, boxHeight:8, padding:16,
-            filter: item => item.text !== 'Budget' && !item.text.startsWith('Plan ')
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      clip: false,
+      aspectRatio: fm === -1 ? 3.5 : 2.0,  // lebih tinggi kalau hanya 1 bulan
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: {
+            color: '#94a3b8', font: { size: 11 }, boxWidth: 12, boxHeight: 8, padding: 16,
+            filter: item => item.text !== 'Budget'
+              && !item.text.startsWith('Plan ')
+              
           }
         },
-        tooltip:{
-          backgroundColor:'#141618', borderColor:'rgba(255,255,255,0.12)', borderWidth:1,
-          titleFont:{ family:"'Barlow Condensed',sans-serif", size:14, weight:'700' },
-          bodyFont:{ family:"'Barlow',sans-serif", size:12 }, padding:12,
-          callbacks:{
+        tooltip: {
+          backgroundColor: '#141618', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
+          titleFont: { family: "'Barlow Condensed',sans-serif", size: 14, weight: '700' },
+          bodyFont:  { family: "'Barlow',sans-serif", size: 12 }, padding: 12,
+          callbacks: {
             title: items => {
-              const i   = items[0].dataIndex;
-              const tot = totalActual[i];
-              const bgt = budgetQtyMonthly[i];
-              const comb = totalCombined[i];
-              const hasPlan = totalPlan[i] > 0;
-              if(tot==null && !hasPlan) return `${MONTHS[i]}  ·  Budget: ${bgt.toLocaleString('id-ID')} MT`;
-              const actPct  = tot  ? (tot/bgt*100).toFixed(1)+'%'  : '0%';
-              const combPct = comb ? (comb/bgt*100).toFixed(1)+'%' : actPct;
-              if(hasPlan){
-                return `${MONTHS[i]}  ·  Actual ${actPct}  |  Actual+Plan ${combPct}  (Bgt: ${bgt.toLocaleString('id-ID')} MT)`;
-              }
-              return `${MONTHS[i]}  ·  ${Math.round(tot||0).toLocaleString('id-ID')} MT  (${actPct} of ${bgt.toLocaleString('id-ID')})`;
+              const slot = items[0].dataIndex;
+              const tot  = totalActual[slot];
+              const bgt  = budgetFiltered[slot];
+              const lbl  = activeLabels[slot];
+              if (tot == null) return lbl + '  \u00b7  Budget: ' + bgt.toLocaleString('id-ID') + ' MT';
+              const pct  = (tot / bgt * 100).toFixed(1);
+              return lbl + '  \u00b7  ' + Math.round(tot).toLocaleString('id-ID') + ' MT'
+                   + '  (' + pct + '% vs ' + bgt.toLocaleString('id-ID') + ' MT budget)';
             },
             label: ctx => {
-              if(ctx.dataset.label==='Budget'){
-                return `  Budget total: ${Math.round(ctx.parsed.y).toLocaleString('id-ID')} MT`;
+              const lbl = ctx.dataset.label;
+              if (lbl === 'Budget') return null;
+              if (lbl.startsWith('Plan ')) {
+                if (!ctx.parsed.y) return null;
+                return '  \ud83d\udccb Plan ' + lbl.replace('Plan ', '') + ':  '
+                     + Math.round(ctx.parsed.y).toLocaleString('id-ID') + ' MT';
               }
-              if(ctx.dataset.label.startsWith('Plan ')){
-                if(ctx.parsed.y==null||ctx.parsed.y===0) return null;
-                return `  Plan ${ctx.dataset.label.replace('Plan ','')} (pipeline): ${Math.round(ctx.parsed.y).toLocaleString('id-ID')} MT`;
+              if (!ctx.parsed.y) return null;
+              const tot  = totalActual[ctx.dataIndex];
+              const dist = tot > 0 ? (ctx.parsed.y / tot * 100).toFixed(1) : '0';
+              return '  ' + lbl + ':  '
+                   + Math.round(ctx.parsed.y).toLocaleString('id-ID') + ' MT'
+                   + '  (' + dist + '%)';
+            },
+            afterBody: items => {
+              const slot = items[0].dataIndex;
+              const tot  = totalActual[slot];
+              const bgt  = budgetFiltered[slot];
+              if (tot == null || tot === 0) return [];
+              const pct  = (tot / bgt * 100).toFixed(1);
+              const lines = [''];
+              lines.push('  \u2500\u2500 Total Actual:  ' + Math.round(tot).toLocaleString('id-ID') + ' MT  (' + pct + '%)');
+              lines.push('  \u2500\u2500 Budget:        ' + Math.round(bgt).toLocaleString('id-ID') + ' MT');
+              if (totalPlan[slot] > 0) {
+                const comb = totalCombined[slot] || 0;
+                lines.push('  \u2500\u2500 Actual+Plan:   ' + Math.round(comb).toLocaleString('id-ID') + ' MT  (' + (comb/bgt*100).toFixed(1) + '%)');
               }
-              if(ctx.parsed.y==null||ctx.parsed.y===0) return null;
-              return `  ${ctx.dataset.label}: ${Math.round(ctx.parsed.y).toLocaleString('id-ID')} MT`;
+              return lines;
             },
             labelColor: ctx => {
-              if(ctx.dataset.label==='Budget') return { borderColor:'rgba(255,255,255,0.3)', backgroundColor:'rgba(255,255,255,0.15)' };
-              const cat = PROD_CATS.find(c=>c.label===ctx.dataset.label);
-              return cat ? { borderColor:cat.color, backgroundColor:cat.color } : {};
+              if (ctx.dataset.label === 'Budget') return { borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.15)' };
+              const lbl = ctx.dataset.label.replace('Plan ', '');
+              const cat = PROD_CATS.find(c => c.label === lbl);
+              return cat ? { borderColor: cat.color, backgroundColor: cat.color } : {};
             }
           }
         }
       },
-      scales:{
-        x:{ grid:{display:false}, border:{display:false},
-            ticks:{ font:{size:12,family:"'Barlow Condensed',sans-serif",weight:'600'}, color:'#606870' },
-            stacked:true },
-        y:{ grid:{color:'rgba(255,255,255,0.04)'}, border:{display:false},
-            stacked:true,
-            ticks:{ font:{size:10}, color:'#606870', callback: v => Math.round(v).toLocaleString('id-ID')+' MT' } }
-      },
-      onClick:(e,els)=>{
-        if(els.length>0){
-          const i = els[0].index;
-          if(typeof openQtyProductModal==='function') openQtyProductModal(i);
+      scales: {
+        x: {
+          grid: { display: false }, border: { display: false },
+          ticks: {
+            font: { size: 12, family: "'Barlow Condensed',sans-serif", weight: '600' },
+            color: idx => {
+              if (fm === -1) return '#606870';
+              return idx.index === 0 ? '#22d3ee' : '#606870';
+            }
+          },
+          stacked: true
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false },
+          stacked: true,
+          ticks: {
+            font: { size: 10 }, color: '#606870',
+            callback: v => Math.round(v).toLocaleString('id-ID') + ' MT'
+          }
         }
       },
-      onHover:(e) => { e.native.target.style.cursor = 'pointer'; }
+      onClick: (e, els) => {
+        if (els.length > 0) {
+          // Klik bar → buka product detail modal, mapping slot ke month index
+          const monthIdx = (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1)
+            ? FILTER_MONTH
+            : els[0].index;
+          if (typeof openQtyProductModal === 'function') openQtyProductModal(monthIdx);
+        }
+      },
+      onHover: (e) => { e.native.target.style.cursor = 'pointer'; }
     },
-    plugins: typeof ChartDataLabels!=='undefined' ? [ChartDataLabels] : []
+    plugins: (typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []).concat([pctLabelPlugin])
   });
 }
 
@@ -188,6 +271,8 @@ function buildTable() {
   let totBudget=0, totActual=0, totPlan=0;
 
   MONTHS.forEach((m,i) => {
+    // Skip months that don't match active filter
+    if (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && FILTER_MONTH !== i) return;
     const budget=BUDGET.margin[i], actual=ACTUAL.margin[i], plan=ACTUAL.plan[i], rev=ACTUAL.revenue[i];
     const isCur=i===NOW_MONTH, isPS=PS_CHAINS[m.toLowerCase()] && PS_CHAINS[m.toLowerCase()].length > 0;
     const attPct = actual!=null && budget>0 ? (actual/budget)*100 : null;
@@ -255,6 +340,7 @@ function buildWaterfall() {
   el.innerHTML = '';
   const maxBudget = Math.max(...BUDGET.margin, 1);
   MONTHS.forEach((m,i) => {
+    if (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && FILTER_MONTH !== i) return;
     const budget=BUDGET.margin[i], actual=ACTUAL.margin[i];
     const isPS = PS_CHAINS[m.toLowerCase()] && PS_CHAINS[m.toLowerCase()].length > 0;
     const budgetW=(budget/maxBudget)*100;
@@ -269,41 +355,72 @@ function buildWaterfall() {
 }
 
 function updateKPIs() {
-  const ytdActual = sum(ACTUAL.margin), totalBudget = sum(BUDGET.margin);
-  const reported = ACTUAL.margin.filter(v=>v!=null).length;
+  // Filter-aware: jika FILTER_MONTH != -1, hanya hitung bulan yang dipilih
+  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+  const indices = fm === -1 ? Array.from({length:12},(_,i)=>i) : [fm];
+
+  const filtMargin  = indices.map(i => ACTUAL.margin[i]);
+  const filtBudget  = indices.map(i => BUDGET.margin[i]);
+  const ytdActual   = sum(filtMargin);
+  const totalBudget = filtBudget.reduce((a,b)=>a+(b||0),0);
+  const reported    = filtMargin.filter(v=>v!=null).length;
+  const periodLabel = fm === -1 ? 'YTD' : (typeof _MS !== 'undefined' ? _MS[fm] : MONTHS[fm]);
+
   document.getElementById('kpi-budget').textContent = fmt(totalBudget,2);
   document.getElementById('kpi-actual').textContent = ytdActual > 0 ? fmt(ytdActual,2) : '—';
-  document.getElementById('kpi-actual-sub').textContent=ytdActual>0?'YTD':'No data yet';
-  document.getElementById('kpi-reported').textContent = `${reported} / 12`;
+  document.getElementById('kpi-actual-sub').textContent = ytdActual > 0 ? periodLabel : 'No data yet';
+  document.getElementById('kpi-reported').textContent = fm === -1 ? (reported + ' / 12') : (reported > 0 ? '✓ Reported' : '— Not reported');
   document.getElementById('footer-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
 
-  if(ytdActual>0 && reported > 0){
-    const ytdBgt = sum(BUDGET.margin.slice(0,Math.max(reported,1)));
-    const att= ytdBgt > 0 ? ((ytdActual/ytdBgt)*100).toFixed(1) : 0;
-    const attEl=document.getElementById('kpi-att');
-    if(attEl) {
-        attEl.textContent=att+'%';
-        attEl.className='kpi-delta '+(att>=80?'delta-good':att>=30?'delta-na':'delta-bad');
+  const attEl  = document.getElementById('kpi-att');
+  const attTip = document.getElementById('kpi-att-tip');
+  if (ytdActual > 0 && totalBudget > 0) {
+    const att    = (ytdActual / totalBudget * 100).toFixed(1);
+    const color  = att>=80 ? 'var(--ok)' : att>=30 ? 'var(--warn)' : 'var(--over)';
+    const period = (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && typeof _MS !== 'undefined')
+      ? _MS[FILTER_MONTH] + ' ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '')
+      : 'YTD ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '');
+    if (attEl) {
+      attEl.textContent  = att + '%';
+      attEl.className    = 'kpi-delta ' + (att>=80 ? 'delta-good' : att>=30 ? 'delta-na' : 'delta-bad');
+      // Hapus position:absolute dari element karena sudah di wrapper
+      attEl.style.position = 'relative';
+      attEl.style.top      = 'auto';
+      attEl.style.right    = 'auto';
     }
+    if (attTip) {
+      attTip.innerHTML = `
+        <div style="border-top:1px solid var(--border);padding-top:2px;">
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span>Actual (${period})</span>
+            <span style="color:var(--actual);font-weight:600;">${fmt(ytdActual,2)} MIDR</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px;">
+            <span>Budget target</span>
+            <span style="font-weight:600;">${fmt(totalBudget,2)} MIDR</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;">
+            <span>Achievement</span>
+            <span style="color:${color};font-weight:700;">${att}%</span>
+          </div>
+        </div>`;
+    }
+  } else {
+    if (attEl) { attEl.textContent = '—'; attEl.className = 'kpi-delta delta-na'; attEl.style.position='relative'; attEl.style.top='auto'; attEl.style.right='auto'; }
+    if (attTip) attTip.innerHTML = '<div style="color:var(--muted);">Belum ada data aktual untuk periode ini.</div>';
   }
 
+  // Best month (always across all months for context)
   let bestIdx = -1, bestPct = -1;
-  ACTUAL.margin.forEach((v,i) => { 
-    if(v == null) return; 
-    const b = BUDGET.margin[i]; 
-    if(b) {
-      const p = (v/b) * 100; 
-      if(p > bestPct) { bestPct = p; bestIdx = i; } 
-    }
+  ACTUAL.margin.forEach((v,i) => {
+    if (v == null) return;
+    const b = BUDGET.margin[i];
+    if (b) { const p = (v/b)*100; if (p > bestPct) { bestPct = p; bestIdx = i; } }
   });
   const bestEl = document.getElementById('kpi-best');
-  if(bestEl) {
-    if(bestIdx >= 0){
-      bestEl.textContent = MONTHS[bestIdx];
-      document.getElementById('kpi-best-sub').textContent = bestPct.toFixed(1) + '% of budget';
-    } else {
-      bestEl.textContent = '—';
-    }
+  if (bestEl) {
+    if (bestIdx >= 0) { bestEl.textContent = MONTHS[bestIdx]; document.getElementById('kpi-best-sub').textContent = bestPct.toFixed(1)+'% of budget'; }
+    else { bestEl.textContent = '—'; }
   }
 }
 

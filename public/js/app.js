@@ -1,12 +1,14 @@
 // ============================================================================
 // UPLOAD EXCEL MODAL — State
 // ============================================================================
-let _uploadParsedPayload = null; // menyimpan {header, items} setelah file di-parse
+const DEFAULT_FX_RATE = 17000; // Fallback kurs USD→IDR jika template belum diisi
+
+let _uploadParsedFiles   = [];   // array of parsed payloads (satu per file)
+let _uploadGrouped       = {};   // grouped by (projectName + poDate)
 
 // ── Buka / Tutup Modal ───────────────────────────────────────────────────────
 function openUploadModal() {
-  const overlay = document.getElementById('upload-modal-overlay');
-  overlay.classList.add('open');
+  document.getElementById('upload-modal-overlay').classList.add('open');
   resetUploadModal();
 }
 
@@ -16,83 +18,108 @@ function closeUploadModal(event, force) {
 }
 
 function resetUploadModal() {
-  _uploadParsedPayload = null;
-
-  // Reset dropzone
-  document.getElementById('upload-dropzone').style.display  = 'block';
-  document.getElementById('upload-preview-section').style.display = 'none';
-  document.getElementById('upload-modal-badge').style.display     = 'none';
-  document.getElementById('upload-btn-reset').style.display       = 'none';
-  document.getElementById('upload-warning').style.display         = 'none';
-  document.getElementById('upload-file-info').textContent         = 'Belum ada file dipilih';
-
-  // Reset submit button
-  const btn = document.getElementById('upload-btn-submit');
-  btn.disabled = true;
-  btn.classList.remove('ready', 'loading');
-  btn.style.background   = 'rgba(34,211,238,0.15)';
-  btn.style.color        = 'rgba(34,211,238,0.4)';
-  btn.style.cursor       = 'not-allowed';
-  btn.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
-    Simpan ke Database`;
-
-  // Reset file input
+  _uploadParsedFiles = [];
+  _uploadGrouped     = {};
+  document.getElementById('upload-dropzone').style.display         = 'block';
+  document.getElementById('upload-preview-section').style.display  = 'none';
+  document.getElementById('upload-modal-badge').style.display      = 'none';
+  document.getElementById('upload-btn-reset').style.display        = 'none';
+  document.getElementById('upload-warning').style.display          = 'none';
+  document.getElementById('upload-file-info').textContent          = 'Belum ada file dipilih';
+  _setSubmitBtn(false);
   const inp = document.getElementById('upload-file-input');
   if (inp) inp.value = '';
+}
+
+function _setSubmitBtn(ready, text) {
+  const btn = document.getElementById('upload-btn-submit');
+  btn.disabled = !ready;
+  btn.className = 'upload-submit-btn' + (ready ? ' ready' : '');
+  btn.innerHTML = (text || (ready ? '✓ Simpan ke Database' : '✓ Simpan ke Database'))
+    .replace('✓', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>');
 }
 
 // ── Drag & Drop ──────────────────────────────────────────────────────────────
 function handleUploadDrop(event) {
   event.preventDefault();
   document.getElementById('upload-dropzone').classList.remove('upload-dz-hover');
-  const file = event.dataTransfer.files[0];
-  if (file) processUploadFile(file);
+  const files = Array.from(event.dataTransfer.files);
+  if (files.length) processUploadFiles(files);
 }
 
 function handleUploadFileSelect(event) {
-  const file = event.target.files[0];
-  if (file) processUploadFile(file);
+  const files = Array.from(event.target.files);
+  if (files.length) processUploadFiles(files);
 }
 
-// ── Core: Read & Parse File ──────────────────────────────────────────────────
-function processUploadFile(file) {
-  document.getElementById('upload-file-info').textContent = `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+// ── Process Multiple Files ───────────────────────────────────────────────────
+async function processUploadFiles(files) {
+  document.getElementById('upload-file-info').textContent =
+    `⏳ Memproses ${files.length} file...`;
 
-  const reader = new FileReader();
-  reader.onload = (evt) => {
+  const results = [];
+  const errors  = [];
+
+  for (const file of files) {
     try {
-      let rows;
-      const firstBytes = new Uint8Array(evt.target.result).slice(0, 200);
-      const rawText    = new TextDecoder('utf-8').decode(firstBytes);
-      const isXml      = rawText.includes('<?xml') && rawText.includes('Excel.Sheet');
-
-      if (isXml) {
-        const text = new TextDecoder('utf-8').decode(evt.target.result);
-        rows = parseXmlSpreadsheet(text);
-      } else {
-        const data     = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet    = workbook.Sheets[workbook.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      }
-
+      const rows    = await _readFileAsRows(file);
       const payload = parseProjectSheetData(rows);
-
       if (!payload.header.psNumber) {
-        showUploadError('Struktur file tidak dikenali. Pastikan file adalah Project Sheet yang valid (harus ada baris "PS  #").');
-        return;
+        errors.push(`${file.name}: PS # tidak ditemukan`);
+        continue;
       }
-
-      _uploadParsedPayload = payload;
-      renderUploadPreview(payload, file.name);
-
+      payload._fileName = file.name;
+      results.push(payload);
     } catch (err) {
-      console.error(err);
-      showUploadError('Gagal membaca file. Pastikan file tidak corrupt dan formatnya benar.');
+      errors.push(`${file.name}: ${err.message}`);
     }
-  };
-  reader.readAsArrayBuffer(file);
+  }
+
+  _uploadParsedFiles = results;
+
+  if (results.length === 0) {
+    showUploadError('Tidak ada file valid: ' + errors.join('; '));
+    return;
+  }
+
+  // Group by (projectName, poDate) → consolidation
+  _uploadGrouped = _groupByProject(results);
+
+  renderUploadPreview(errors);
+}
+
+function _readFileAsRows(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const firstBytes = new Uint8Array(evt.target.result).slice(0, 200);
+        const rawText    = new TextDecoder('utf-8').decode(firstBytes);
+        const isXml      = rawText.includes('<?xml') && rawText.includes('Excel.Sheet');
+        let rows;
+        if (isXml) {
+          rows = parseXmlSpreadsheet(new TextDecoder('utf-8').decode(evt.target.result));
+        } else {
+          const wb    = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        }
+        resolve(rows);
+      } catch(e) { reject(e); }
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function _groupByProject(payloads) {
+  const groups = {};
+  payloads.forEach(p => {
+    const key = (p.header.projectName || p.header.psNumber) + '__' + (p.header.poDate || '');
+    if (!groups[key]) groups[key] = { projectName: p.header.projectName, poDate: p.header.poDate, files: [] };
+    groups[key].files.push(p);
+  });
+  return groups;
 }
 
 function showUploadError(msg) {
@@ -100,163 +127,217 @@ function showUploadError(msg) {
   warn.innerHTML = '⚠️ ' + msg;
   warn.style.display = 'block';
   document.getElementById('upload-preview-section').style.display = 'block';
-  document.getElementById('upload-dropzone').style.display = 'none';
+  document.getElementById('upload-dropzone').style.display        = 'none';
 }
 
-// ── Render Preview ───────────────────────────────────────────────────────────
+// ── Render Preview ────────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-function renderUploadPreview(payload, fileName) {
-  const { header, items } = payload;
-
-  // Sembunyikan dropzone, tampilkan preview
+function renderUploadPreview(errors) {
   document.getElementById('upload-dropzone').style.display        = 'none';
   document.getElementById('upload-preview-section').style.display = 'block';
   document.getElementById('upload-modal-badge').style.display     = 'inline-flex';
   document.getElementById('upload-btn-reset').style.display       = 'inline-flex';
 
-  // Hitung bulan dari PO Date (format dd/mm/yyyy)
-  let monthLabel = '—';
-  if (header.poDate) {
-    const parts = header.poDate.split('/');
-    if (parts.length >= 2) {
-      const mIdx = parseInt(parts[1]) - 1;
-      if (mIdx >= 0 && mIdx <= 11) monthLabel = `${header.poDate}  →  ${MONTH_NAMES[mIdx]} 2026`;
-    }
-  }
+  const totalFiles   = _uploadParsedFiles.length;
+  const totalGroups  = Object.keys(_uploadGrouped).length;
+  const grandTotalM  = _uploadParsedFiles.reduce((s, p) => s + (p.header.marginIDR || 0), 0);
 
-  // Info cards
-  document.getElementById('prev-ps-number').textContent = header.psNumber || '—';
-  document.getElementById('prev-customer').textContent  = header.customerName || '—';
-  document.getElementById('prev-po-date').textContent   = monthLabel;
+  // Footer info & badge
+  document.getElementById('upload-file-info').textContent = `${totalFiles} file · ${totalGroups} project`;
+  const badge = document.getElementById('upload-modal-badge');
+  badge.textContent = totalFiles > 1
+    ? `${totalFiles} FILES · ${totalGroups} PROJECT${totalGroups > 1 ? 'S' : ''}`
+    : 'File Loaded';
 
-  // KPI — format Rupiah singkat
-  const fmt = (v) => {
+  const fmtM = v => {
     if (!v) return '—';
-    if (v >= 1e9)  return 'Rp ' + (v / 1e9).toFixed(2) + ' M';
-    if (v >= 1e6)  return 'Rp ' + (v / 1e6).toFixed(1) + ' Jt';
-    return 'Rp ' + Number(v).toLocaleString('id-ID');
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 1e9)  return sign + 'Rp ' + (abs/1e9).toFixed(3) + ' M';
+    if (abs >= 1e6)  return sign + 'Rp ' + (abs/1e6).toFixed(1) + ' Jt';
+    return sign + 'Rp ' + Number(abs).toLocaleString('id-ID');
   };
-  document.getElementById('prev-sales').textContent      = fmt(header.sales);
-  document.getElementById('prev-purchase').textContent   = fmt(header.purchase);
-  document.getElementById('prev-margin').textContent     = fmt(header.margin);
-  document.getElementById('prev-margin-pct').textContent = header.marginPct ? `(${header.marginPct.toFixed(2)}%)` : '';
 
-  // Item table
-  document.getElementById('prev-item-count').textContent = items.length;
-  const tbody = document.getElementById('prev-items-tbody');
-  tbody.innerHTML = '';
-
-  if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px;">Tidak ada item ditemukan</td></tr>`;
-  } else {
-    items.forEach(item => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="color:var(--muted2);font-size:11px;">${item.no}</td>
-        <td>
-          <div style="font-weight:600;font-size:12px;">${item.material}</div>
-          ${item.size ? `<div style="font-size:11px;color:var(--muted2);margin-top:2px;">${item.size.substring(0,80)}${item.size.length>80?'…':''}</div>` : ''}
-        </td>
-        <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;">
-          ${Number(item.qtyVal).toLocaleString('id-ID')} ${item.qtyUnit}
-        </td>
-        <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;">
-          ${Number(item.totalWeight).toLocaleString('id-ID')} KG
-        </td>
-        <td style="text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--muted2);">
-          ${item.purchasePrice ? Number(item.purchasePrice).toLocaleString('id-ID') : '—'}
-        </td>`;
-      tbody.appendChild(tr);
-    });
+  // ── Summary bar (grand total jika multi-project) ──
+  const summaryBar = document.getElementById('upload-summary-bar');
+  if (totalGroups > 1 && summaryBar) {
+    summaryBar.innerHTML = `
+      <div style="width:100%;padding:10px 14px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ok);">Grand Total · ${totalFiles} file · ${totalGroups} projects</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--ok);">${fmtM(grandTotalM)}</div>
+      </div>`;
+  } else if (summaryBar) {
+    summaryBar.innerHTML = '';
   }
 
-  // Warning jika field penting kosong
-  const missing = [];
-  if (!header.sales)   missing.push('Total Sales');
-  if (!header.margin)  missing.push('Margin');
-  if (!header.poDate)  missing.push('PO Date');
+  // ── Render each project group ──
+  let html = '';
+  Object.values(_uploadGrouped).forEach((group) => {
+    const { projectName, poDate, files } = group;
+
+    // Month label from PO Date
+    let monthLabel = '—';
+    if (poDate) {
+      const p = poDate.split('/');
+      if (p.length >= 2) {
+        const mi = parseInt(p[1]) - 1;
+        if (mi >= 0 && mi <= 11) monthLabel = MONTH_NAMES[mi];
+      }
+    }
+
+    const totalMarginIDR  = files.reduce((s, f) => s + (f.header.marginIDR  || 0), 0);
+    const totalSalesIDR   = files.reduce((s, f) => s + (f.header.salesIDR   || 0), 0);
+    const totalWeightKg   = files.reduce((s, f) => f.items.reduce((ss, it) => ss + (it.totalWeight || 0), 0) + s, 0);
+    const consolidatedPct = totalSalesIDR > 0 ? (totalMarginIDR / totalSalesIDR * 100).toFixed(2) : '0.00';
+    const isMulti         = files.length > 1;
+    const accentColor     = isMulti ? '#a78bfa' : '#22d3ee';
+    const borderColor     = isMulti ? 'rgba(167,139,250,0.3)' : 'var(--border2)';
+    const bgColor         = isMulti ? 'rgba(167,139,250,0.06)' : 'var(--s2)';
+
+    // Per-file rows
+    const fileRows = files.map(f => {
+      const h     = f.header;
+      const isFx  = h.baseCurrency && h.baseCurrency !== 'IDR';
+      const fxStr = isFx
+        ? `<div style="font-size:10px;color:#f59e0b;margin-top:3px;">
+             FX: ${Number(h.netMarginNative || 0).toLocaleString('id-ID')} ${h.baseCurrency}
+             &times; ${Number(h.fxToIDR || DEFAULT_FX_RATE).toLocaleString('id-ID')}
+             = ${fmtM(h.marginIDR)}
+           </div>`
+        : '';
+
+      // Item list (collapsed, show first 3)
+      const itemRows = f.items.slice(0, 3).map(it =>
+        `<div style="font-size:10px;color:var(--muted2);padding:3px 0;border-bottom:1px solid var(--border);">
+           <span style="color:var(--muted)">${it.material.substring(0,40)}${it.material.length>40?'…':''}</span>
+           &nbsp;&mdash;&nbsp;${Number(it.totalWeight||0).toLocaleString('id-ID')} KG
+         </div>`
+      ).join('');
+      const moreItems = f.items.length > 3
+        ? `<div style="font-size:10px;color:var(--muted);padding:3px 0;">+${f.items.length-3} item lainnya</div>`
+        : '';
+
+      return `
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;font-weight:700;color:#fff;">${h.psNumber}</div>
+              <div style="font-size:10px;color:var(--muted2);margin-top:2px;">${h.subsidiary || h.customerName || ''}</div>
+              ${fxStr}
+            </div>
+            <div style="text-align:right;margin-left:12px;flex-shrink:0;">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--ok);">${fmtM(h.marginIDR)}</div>
+              <div style="font-size:10px;color:var(--muted2);">${(h.marginPct||0).toFixed(2)}% &middot; ${h.baseCurrency||'IDR'}</div>
+            </div>
+          </div>
+          ${f.items.length > 0 ? `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+            ${itemRows}${moreItems}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    // Consolidated footer (only for multi-file groups)
+    const consolidatedFooter = isMulti ? `
+      <div style="padding:10px 16px;background:rgba(74,222,128,0.05);display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ok);">Total Konsolidasi</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:800;color:var(--ok);">
+          ${fmtM(totalMarginIDR)}
+          <span style="font-size:12px;color:var(--muted2);margin-left:4px;">${consolidatedPct}%</span>
+        </div>
+      </div>` : '';
+
+    html += `
+      <div style="border:1px solid ${borderColor};border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <!-- Project header -->
+        <div style="background:${bgColor};padding:12px 16px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border2);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${accentColor};margin-bottom:4px;">
+              ${isMulti ? `🔗 INTERCOMPANY &middot; ${files.length} Subsidiaries` : '📄 Single PS'}
+            </div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:#fff;line-height:1.2;">${projectName}</div>
+            <div style="font-size:11px;color:var(--muted2);margin-top:4px;">
+              PO Date: <strong style="color:var(--plan)">${poDate}</strong>
+              &rarr; <strong style="color:#fff">${monthLabel}</strong>
+              &nbsp;&middot;&nbsp; ${Math.round(totalWeightKg/1000).toLocaleString('id-ID')} MT
+              &nbsp;&middot;&nbsp; ${files.reduce((s,f)=>s+f.items.length,0)} item
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--ok);">${fmtM(totalMarginIDR)}</div>
+            <div style="font-size:10px;color:var(--muted2);">${consolidatedPct}% net margin</div>
+          </div>
+        </div>
+        ${fileRows}
+        ${consolidatedFooter}
+      </div>`;
+  });
+
+  // Write to the clean container
+  const container = document.getElementById('upload-groups-container');
+  if (container) container.innerHTML = html;
+
+  // Warnings
   const warnEl = document.getElementById('upload-warning');
-  if (missing.length) {
-    warnEl.innerHTML = `⚠️ Beberapa field tidak terbaca: <strong>${missing.join(', ')}</strong>. Data tetap bisa disimpan, tapi mungkin tidak lengkap.`;
+  const warns  = [...(errors || [])];
+  _uploadParsedFiles.forEach(p => {
+    if (!p.header.sales)  warns.push(`${p.header.psNumber}: Total Sales tidak terbaca`);
+    if (!p.header.margin) warns.push(`${p.header.psNumber}: Margin tidak terbaca`);
+  });
+  if (warns.length) {
+    warnEl.innerHTML = '⚠️ ' + warns.join('<br>⚠️ ');
     warnEl.style.display = 'block';
   } else {
     warnEl.style.display = 'none';
   }
 
-  // Aktifkan tombol Submit
-  const btn = document.getElementById('upload-btn-submit');
-  btn.disabled = false;
-  btn.classList.add('ready');
-  btn.style.background = '';
-  btn.style.color      = '';
-  btn.style.cursor     = '';
+  _setSubmitBtn(true);
 }
 
-// ── Submit ke Database ───────────────────────────────────────────────────────
+// ── Submit ke Database ────────────────────────────────────────────────────────
 async function submitUploadToDb() {
-  if (!_uploadParsedPayload) return;
+  if (!_uploadParsedFiles.length) return;
 
   const btn = document.getElementById('upload-btn-submit');
   btn.disabled = true;
-  btn.classList.remove('ready');
-  btn.classList.add('loading');
-  btn.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;animation:spin 1s linear infinite;">
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-    </svg>
-    Menyimpan...`;
+  btn.className = 'upload-submit-btn loading';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;animation:spin 1s linear infinite;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg> Menyimpan ${_uploadParsedFiles.length} file...`;
 
   try {
-    const res = await fetch('/api/project-sheet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(_uploadParsedPayload)
-    });
-
-    if (res.ok) {
-      const psNum = _uploadParsedPayload.header.psNumber;
-      // Tampilkan sukses sebentar lalu tutup
-      btn.innerHTML = `✓ Tersimpan!`;
-      btn.style.background = 'linear-gradient(135deg,#15803d,#166534)';
-      btn.style.color      = '#fff';
-      btn.classList.remove('loading');
-      showToast(`✓ ${psNum} berhasil disimpan ke database`);
-      setTimeout(() => {
-        closeUploadModal(null, true);
-        if (typeof initApp === 'function') initApp();
-      }, 900);
-    } else {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Server error ${res.status}`);
+    // Submit satu per satu — server aggregates after each
+    for (const payload of _uploadParsedFiles) {
+      // Tambahkan tahun dashboard dari FILTER_YEAR ke setiap payload
+    if (typeof FILTER_YEAR !== 'undefined') {
+        payload.header.dashboardYear = FILTER_YEAR;
     }
+    const res = await fetch('/api/project-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`${payload.header.psNumber}: ${err.error || res.status}`);
+      }
+    }
+
+    const names = Object.values(_uploadGrouped).map(g => g.projectName).join(', ');
+    btn.innerHTML = '✓ Tersimpan!';
+    btn.className = 'upload-submit-btn success';
+    showToast(`✓ ${_uploadParsedFiles.length} PS disimpan (${Object.keys(_uploadGrouped).length} project)`);
+    setTimeout(() => { closeUploadModal(null, true); if (typeof initApp === 'function') initApp(); }, 900);
+
   } catch (err) {
-    console.error(err);
     btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.classList.add('ready');
-    btn.style.background = '';
-    btn.style.color      = '';
-    btn.style.cursor     = '';
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg> Simpan ke Database`;
-    showToast(`Gagal menyimpan: ${err.message}`, true);
+    btn.className = 'upload-submit-btn ready';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg> Simpan ke Database';
+    showToast(`Gagal: ${err.message}`, true);
   }
 }
 
-// Tambahkan animasi spin ke stylesheet secara dinamis (jika belum ada)
-(function() {
-  if (!document.getElementById('spin-style')) {
-    const s = document.createElement('style');
-    s.id = 'spin-style';
-    s.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-    document.head.appendChild(s);
-  }
-})();
-
 // ============================================================================
 // XML SpreadsheetML PARSER
-// File .xls dari sistem PS (SGD, LSJ) menggunakan format Office 2003 XML.
-// SheetJS tidak bisa membacanya — parser ini menggantinya.
 // ============================================================================
 function parseXmlSpreadsheet(xmlText) {
   let text = xmlText
@@ -272,42 +353,26 @@ function parseXmlSpreadsheet(xmlText) {
   doc.querySelectorAll('Row').forEach(rowEl => {
     const cells = [];
     let colIdx  = 0;
-
     rowEl.querySelectorAll('Cell').forEach(cellEl => {
-      // ss:Index → ada kolom yang di-skip
       const idxAttr = cellEl.getAttribute('Index');
       if (idxAttr) {
         const target = parseInt(idxAttr) - 1;
         while (colIdx < target) { cells.push(''); colIdx++; }
       }
-
       const dataEl = cellEl.querySelector('Data');
       const val    = dataEl ? (dataEl.textContent || '').replace(/\n\s*/g, ' ').trim() : '';
       cells.push(val);
       colIdx++;
-
-      // ss:MergeAcross → isi kolom merge dengan ''
       const merge = cellEl.getAttribute('MergeAcross');
-      if (merge) {
-        for (let m = 0; m < parseInt(merge); m++) { cells.push(''); colIdx++; }
-      }
+      if (merge) { for (let m = 0; m < parseInt(merge); m++) { cells.push(''); colIdx++; } }
     });
-
     rows.push(cells);
   });
-
   return rows;
 }
 
 // ============================================================================
-// PROJECT SHEET PARSER
-// Mengurai array 2D → {header, items}
-//
-// Mapping kolom (XML SpreadsheetML, terverifikasi dari file nyata):
-//   HEADER (baris 0–16): col[1]=label, col[4]=value
-//   ITEM   (baris 22+ ): col[1]=No, col[2]=Kode, col[6]=Deskripsi,
-//                         col[9]=Qty, col[11]=TotalWeight, col[14]=Harga/KG
-//   SUMMARY (post-TOTAL): col[1]=label, col[9]=IDR, col[11]=pct
+// PROJECT SHEET PARSER — dengan FX detection & Net Margin priority
 // ============================================================================
 function parseProjectSheetData(lines) {
   const header = {};
@@ -322,10 +387,9 @@ function parseProjectSheetData(lines) {
     if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1, -1);
     return parseFloat(s) || 0;
   };
-
   const get = (row, idx) => (row && row.length > idx) ? (row[idx] || '') : '';
 
-  // ── Header section ──
+  // ── Header ──
   for (let i = 0; i < 17; i++) {
     const row   = lines[i];
     if (!row) continue;
@@ -340,20 +404,40 @@ function parseProjectSheetData(lines) {
     if (label === 'Supplier Name')              header.supplierName = val;
     if (label === 'PO Date')                    header.poDate       = val;
     if (label === 'Currency')                   header.currency     = val;
+
+    // FX row: "1 USD = IDR", "1 IDR = IDR", "1 SGD = IDR", dll
+    // Format: col[1] = "1 XXX = IDR", col[4] = rate value
+    if (label.match(/^1\s+\w+\s+=\s+IDR/i)) {
+      header.fxLabel = label;    // e.g. "1 USD = IDR"
+      header.fxRate  = cleanNum(val); // numeric rate (misal 17000, atau 1 jika belum diisi)
+    }
   }
 
-  // ── Item rows ──
+  // ── Detect base currency & fxToIDR ──
+  const fxLabel = header.fxLabel || '';
+  const fxRate  = header.fxRate  || 0;
+  // Extract currency code dari label: "1 USD = IDR" → "USD"
+  const fxMatch = fxLabel.match(/^1\s+(\w+)\s+=\s+IDR/i);
+  const baseCurr = fxMatch ? fxMatch[1].toUpperCase() : 'IDR';
+
+  if (baseCurr === 'IDR') {
+    header.baseCurrency = 'IDR';
+    header.fxToIDR = 1;
+  } else {
+    header.baseCurrency = baseCurr;
+    // Jika rate = 1, template belum diisi → pakai DEFAULT
+    header.fxToIDR = (fxRate && fxRate > 1) ? fxRate : DEFAULT_FX_RATE;
+  }
+
+  // ── Items ──
   let rowIndex = 22;
   while (rowIndex < lines.length) {
     const row  = lines[rowIndex];
     if (!row || row.length === 0) { rowIndex++; continue; }
-
     const col1 = String(get(row, 1)).trim();
     const col2 = String(get(row, 2)).trim();
-
     if (col2 === 'TOTAL') break;
     if (col1 === '' && col2 !== '') { rowIndex++; continue; }
-
     const itemNo = parseInt(col1);
     if (!isNaN(itemNo) && itemNo > 0) {
       items.push({
@@ -370,49 +454,32 @@ function parseProjectSheetData(lines) {
     rowIndex++;
   }
 
-  // ── Summary section ──
-  // PENTING: Beberapa PS punya biaya tambahan (Port Charges, KSO, Insurance, dll)
-  // yang mengurangi Margin menjadi Net Margin.
-  // Contoh LSJ: Margin=1.218.882.000 tapi Net Margin=826.331.311 setelah port charges.
-  // Kita harus pakai Net Margin sebagai angka final, bukan Margin kotor.
-  // Strategi: scan dulu seluruh section, simpan semua nilai, pakai Net Margin jika ada.
-  let rawMargin = 0, rawMarginPct = 0;
-  let netMargin = 0, netMarginPct = 0;
-  let grossMargin = 0, grossMarginPct = 0;
-
+  // ── Summary: Net Margin priority ──
+  let rawMargin = 0, rawPct = 0, grossMargin = 0, grossPct = 0, netMargin = 0, netPct = 0;
   for (let i = rowIndex; i < lines.length; i++) {
     const row   = lines[i];
     if (!row) continue;
     const label = String(get(row, 1)).trim();
-
     if (label === 'Sales' || label === 'Net Sales') {
       const v = cleanNum(get(row, 9));
       if (v && !header.sales) header.sales = v;
     }
-    if (label === 'Purchase') {
-      header.purchase = Math.abs(cleanNum(get(row, 9)));
-    }
-    // Margin kotor (sebelum port charges / biaya tambahan)
-    if (label === 'Margin') {
-      rawMargin    = cleanNum(get(row, 9));
-      rawMarginPct = cleanNum(get(row, 11));
-    }
-    // Gross Margin (setelah Total Cost dikurangi)
-    if (label === 'Gross Margin') {
-      grossMargin    = cleanNum(get(row, 9));
-      grossMarginPct = cleanNum(get(row, 11));
-    }
-    // Net Margin = angka paling final (setelah semua biaya)
-    if (label === 'Net Margin') {
-      netMargin    = cleanNum(get(row, 9));
-      netMarginPct = cleanNum(get(row, 11));
-      break; // tidak ada lagi setelah Net Margin
-    }
+    if (label === 'Purchase')    { header.purchase = Math.abs(cleanNum(get(row, 9))); }
+    if (label === 'Margin')      { rawMargin   = cleanNum(get(row, 9)); rawPct   = cleanNum(get(row, 11)); }
+    if (label === 'Gross Margin'){ grossMargin = cleanNum(get(row, 9)); grossPct = cleanNum(get(row, 11)); }
+    if (label === 'Net Margin')  { netMargin   = cleanNum(get(row, 9)); netPct   = cleanNum(get(row, 11)); break; }
   }
 
-  // Prioritas: Net Margin > Gross Margin > Margin kotor
-  header.margin    = netMargin    || grossMargin    || rawMargin;
-  header.marginPct = netMarginPct || grossMarginPct || rawMarginPct;
+  // Nilai dalam currency asli file (USD/IDR/etc)
+  header.netMarginNative = netMargin || grossMargin || rawMargin;
+  header.marginPct       = netPct    || grossPct    || rawPct;
+
+  // Konversi ke IDR
+  header.marginIDR = header.netMarginNative * header.fxToIDR;
+  header.salesIDR  = (header.sales || 0) * (header.baseCurrency === 'IDR' ? 1 : header.fxToIDR);
+
+  // Backward compat: header.margin = IDR value (yang disimpan ke DB)
+  header.margin = header.marginIDR;
 
   return { header, items };
 }

@@ -44,7 +44,49 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       Import Excel
     </button>
-    
+
+    <!-- Filter: Year + Month dropdown -->
+    <div style="display:flex;align-items:center;gap:6px;margin-left:8px;border-left:1px solid var(--border2);padding-left:12px;">
+
+      <!-- Year stepper -->
+      <div style="display:flex;align-items:center;background:var(--s2);border:1px solid var(--border2);border-radius:7px;overflow:hidden;">
+        <button onclick="shiftFilterYear(-1)" style="width:26px;height:30px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted2)'">‹</button>
+        <span id="filter-year-label" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:#fff;min-width:36px;text-align:center;">2026</span>
+        <button onclick="shiftFilterYear(1)"  style="width:26px;height:30px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted2)'">›</button>
+      </div>
+
+      <!-- Month dropdown -->
+      <div style="position:relative;">
+        <button id="filter-month-btn" onclick="toggleMonthDropdown()"
+          style="display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:var(--s2);border:1px solid var(--border2);border-radius:7px;color:var(--muted2);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.3px;transition:all 0.15s;min-width:100px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="filter-month-label">All Months</span>
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:auto;"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="filter-month-dropdown" style="display:none;position:absolute;top:34px;right:0;z-index:9999;background:var(--s1);border:1px solid var(--border2);border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,0.6);padding:6px;min-width:160px;">
+          <button class="month-dd-item active" data-month="-1" onclick="setFilterMonth(-1)">All Months</button>
+          <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;">
+            <button class="month-dd-item" data-month="0"  onclick="setFilterMonth(0)">Jan</button>
+            <button class="month-dd-item" data-month="1"  onclick="setFilterMonth(1)">Feb</button>
+            <button class="month-dd-item" data-month="2"  onclick="setFilterMonth(2)">Mar</button>
+            <button class="month-dd-item" data-month="3"  onclick="setFilterMonth(3)">Apr</button>
+            <button class="month-dd-item" data-month="4"  onclick="setFilterMonth(4)">May</button>
+            <button class="month-dd-item" data-month="5"  onclick="setFilterMonth(5)">Jun</button>
+            <button class="month-dd-item" data-month="6"  onclick="setFilterMonth(6)">Jul</button>
+            <button class="month-dd-item" data-month="7"  onclick="setFilterMonth(7)">Aug</button>
+            <button class="month-dd-item" data-month="8"  onclick="setFilterMonth(8)">Sep</button>
+            <button class="month-dd-item" data-month="9"  onclick="setFilterMonth(9)">Oct</button>
+            <button class="month-dd-item" data-month="10" onclick="setFilterMonth(10)">Nov</button>
+            <button class="month-dd-item" data-month="11" onclick="setFilterMonth(11)">Dec</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active badge + reset -->
+      <div id="filter-active-badge" style="display:none;font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(34,211,238,0.12);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);font-weight:600;white-space:nowrap;"></div>
+      <button id="filter-reset-btn" onclick="setFilterMonth(-1)" style="display:none;height:30px;padding:0 8px;background:transparent;border:1px solid rgba(244,63,94,0.3);color:var(--over);border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;" onmouseover="this.style.background='rgba(244,63,94,0.1)'" onmouseout="this.style.background='transparent'">✕</button>
+    </div>
     </div>
 </header>
 
@@ -66,7 +108,13 @@
     <div class="kpi-l">YTD Actual</div>
     <div class="kpi-v" id="kpi-actual">—</div>
     <div class="kpi-s" id="kpi-actual-sub">No data yet</div>
-    <div class="kpi-delta delta-na" id="kpi-att">—</div>
+    <!-- Tooltip wrapper untuk badge achievement % -->
+    <div style="position:absolute;top:16px;right:16px;" id="kpi-att-wrap">
+      <div class="kpi-delta delta-na" id="kpi-att"
+           style="cursor:default;position:relative;"
+           onmouseenter="_showAttTip(this)"
+           onmouseleave="_hideAttTip()">—</div>
+    </div>
   </div>
   <div class="kpi" style="--kpi-c:var(--ok)">
     <div class="kpi-l">Months Reported</div>
@@ -113,32 +161,40 @@
   </div>
 </div>
 
-<div class="main-grid">
-  <div style="display:flex; flex-direction:column; gap:16px;">
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><span class="dot" style="background:#22d3ee"></span>Qty Actual vs Budget (MT) <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'Barlow',sans-serif;margin-left:6px;">· klik bar untuk detail produk</span></div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2)">
-            <span style="width:12px;height:10px;border:1.5px solid rgba(255,255,255,0.30);display:inline-block;border-radius:2px;background:transparent;"></span>Budget
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#4ade80">
-            <span style="width:12px;height:8px;background:#4ade80;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual ≥ Budget
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#fb923c">
-            <span style="width:12px;height:8px;background:#fb923c;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual &lt; Budget
-          </span>
-        </div>
-      </div>
-      <div class="card-body">
-        <canvas id="mainChart" height="200"></canvas>
+
+
+<!-- ── Main Grid ── -->
+<div style="display:flex;flex-direction:column;gap:16px;margin-bottom:16px;">
+
+  <!-- Chart: full width -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title"><span class="dot" style="background:#22d3ee"></span>QTY Actual vs Budget (MT) <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'Barlow',sans-serif;margin-left:6px;">· klik bar untuk detail produk</span></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2)">
+          <span style="width:12px;height:10px;border:1.5px solid rgba(255,255,255,0.30);display:inline-block;border-radius:2px;background:transparent;"></span>Budget
+        </span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#4ade80">
+          <span style="width:12px;height:8px;background:#4ade80;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual ≥ Budget
+        </span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#fb923c">
+          <span style="width:12px;height:8px;background:#fb923c;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual &lt; Budget
+        </span>
       </div>
     </div>
+    <div class="card-body" style="padding:16px 20px;">
+      <canvas id="mainChart"></canvas>
+    </div>
+  </div>
 
+  <!-- Monthly Breakdown + Achievement Bar: side by side -->
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;">
+
+    <!-- Monthly Breakdown -->
     <div class="card">
       <div class="card-head">
         <div class="card-title"><span class="dot" style="background:var(--muted2)"></span>Monthly Breakdown</div>
-        <div class="card-tag">Click row for monthly report</div>
+        <div class="card-tag" style="cursor:pointer;" onclick="openProductSummaryModal()">📦 Product Summary</div>
       </div>
       <div class="card-body" style="padding:0 20px 20px;">
         <table class="month-table">
@@ -157,28 +213,32 @@
         </table>
       </div>
     </div>
-  </div>
 
-  <div style="display:flex; flex-direction:column; gap:16px;">
+    <!-- Achievement Bar -->
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="dot" style="background:#f59e0b"></span>Product Summary</div>
-        <div id="qty-tabs-wrap" style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;overflow:hidden;padding:2px;">
-        </div>
+        <div class="card-title" style="font-size:13px;"><span class="dot" style="background:var(--warn)"></span>Achievement Bar</div>
+        <div class="card-tag">vs Budget</div>
       </div>
-      <div class="card-body" style="padding:0;max-height:420px;overflow-y:auto;" id="qty-panel">
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><span class="dot" style="background:var(--warn)"></span>Achievement Bar</div>
-        <div class="card-tag">Actual vs Budget</div>
-      </div>
-      <div class="card-body" style="padding:14px 20px;">
+      <div class="card-body" style="padding:12px 16px;">
         <div id="waterfall"></div>
       </div>
     </div>
+
+  </div>
+</div>
+
+<!-- ── Product Summary Modal ── -->
+<div id="product-summary-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;" onclick="if(event.target===this)closeProductSummaryModal()">
+  <div style="background:var(--s1);border:1px solid var(--border2);border-radius:14px;width:480px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px 14px;border-bottom:1px solid var(--border2);">
+      <div class="card-title"><span class="dot" style="background:#f59e0b"></span>Product Summary</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <div id="qty-tabs-wrap" style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;overflow:hidden;padding:2px;"></div>
+        <button onclick="closeProductSummaryModal()" style="width:30px;height:30px;border-radius:6px;background:var(--s3);border:1px solid var(--border2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;overflow-y:auto;flex:1;" id="qty-panel"></div>
   </div>
 </div>
 
@@ -213,7 +273,15 @@
 <div class="modal-overlay" id="budget-modal-overlay" onclick="closeBudgetModal(event)">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-month" style="color:var(--plan)">Edit Budget <span>Targets</span></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="modal-month" style="color:var(--plan)">Edit Budget <span>Targets</span></div>
+        <!-- Year selector in budget modal -->
+        <div style="display:flex;align-items:center;background:var(--s3);border:1px solid var(--border2);border-radius:7px;overflow:hidden;">
+          <button onclick="shiftBudgetYear(-1)" style="width:26px;height:26px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted2)'">‹</button>
+          <span id="budget-year-label" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--plan);min-width:38px;text-align:center;">2026</span>
+          <button onclick="shiftBudgetYear(1)"  style="width:26px;height:26px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted2)'">›</button>
+        </div>
+      </div>
       <button class="modal-close" onclick="closeBudgetModal(null, true)">✕</button>
     </div>
     <div class="modal-body">
@@ -441,71 +509,25 @@
            ondrop="handleUploadDrop(event)"
            onclick="document.getElementById('upload-file-input').click()"
            style="border:2px dashed rgba(34,211,238,0.35);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px;background:rgba(34,211,238,0.03);">
-        <input type="file" id="upload-file-input" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleUploadFileSelect(event)">
+        <input type="file" id="upload-file-input" accept=".xls,.xlsx,.csv" multiple style="display:none" onchange="handleUploadFileSelect(event)">
         <div style="margin-bottom:12px;">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" style="opacity:0.7"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:6px;">Drag & Drop file di sini</div>
-        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; Format: <span style="color:#22d3ee;">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:6px;">Drag & Drop satu atau beberapa file</div>
+        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; <span style="color:#22d3ee;">Multi-file OK</span> &nbsp;·&nbsp; Format: <span style="color:#22d3ee;">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
       </div>
 
       <!-- ── STEP 2: Preview (hidden until file parsed) ── -->
       <div id="upload-preview-section" style="display:none;">
 
-        <!-- Info header cards -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:18px;">
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">PS Number</div>
-            <div id="prev-ps-number" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:#22d3ee;">—</div>
-          </div>
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Customer</div>
-            <div id="prev-customer" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:#fff;">—</div>
-          </div>
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">PO Date → Bulan Dashboard</div>
-            <div id="prev-po-date" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--plan);">—</div>
-          </div>
-        </div>
+        <!-- Summary bar: total files & projects -->
+        <div id="upload-summary-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
 
-        <!-- KPI row: Sales / Purchase / Margin -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:18px;">
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total Sales</div>
-            <div id="prev-sales" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--ok);">—</div>
-          </div>
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Purchase</div>
-            <div id="prev-purchase" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--warn);">—</div>
-          </div>
-          <div style="background:var(--s2);padding:14px 16px;">
-            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Margin</div>
-            <div style="display:flex;align-items:baseline;gap:8px;">
-              <div id="prev-margin" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:#22d3ee;">—</div>
-              <div id="prev-margin-pct" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--muted2);">—</div>
-            </div>
-          </div>
-        </div>
+        <!-- Groups container — diisi oleh renderUploadPreview() di app.js -->
+        <div id="upload-groups-container" style="margin-bottom:4px;"></div>
 
-        <!-- Item table -->
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Detail Item (<span id="prev-item-count">0</span> produk)</div>
-        <div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:20px;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr style="background:var(--s3);">
-                <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">No</th>
-                <th style="padding:10px 12px;text-align:left;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Material / Deskripsi</th>
-                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Qty</th>
-                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Total Weight</th>
-                <th style="padding:10px 12px;text-align:right;color:var(--muted);font-weight:600;letter-spacing:1px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border2);">Harga/KG</th>
-              </tr>
-            </thead>
-            <tbody id="prev-items-tbody"></tbody>
-          </table>
-        </div>
-
-        <!-- Warning jika ada field kosong -->
-        <div id="upload-warning" style="display:none;padding:10px 14px;background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.3);border-radius:8px;font-size:12px;color:var(--warn);margin-bottom:16px;"></div>
+        <!-- Warning -->
+        <div id="upload-warning" style="display:none;padding:10px 14px;background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.3);border-radius:8px;font-size:12px;color:var(--warn);margin-bottom:12px;"></div>
 
       </div><!-- /preview -->
 
@@ -519,7 +541,7 @@
             Ganti File
           </button>
           <button id="upload-btn-submit" onclick="submitUploadToDb()" disabled
-            style="display:flex;align-items:center;gap:7px;padding:9px 20px;border-radius:7px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:not-allowed;border:none;background:rgba(34,211,238,0.15);color:rgba(34,211,238,0.4);transition:all 0.2s;">
+            class="upload-submit-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
             Simpan ke Database
           </button>
@@ -590,5 +612,43 @@
 <script src="/js/chat.js"></script>
 <script src="/js/app.js"></script>
 
+
+<!-- kpi-att floating tooltip — fixed to body so it is never clipped -->
+<div id="kpi-att-tip" style="
+  display:none; opacity:0; pointer-events:none;
+  position:fixed; z-index:9999;
+  background:var(--s1); border:1px solid var(--border2);
+  border-radius:8px; padding:10px 14px;
+  font-size:11px; color:var(--muted2); font-family:'Barlow',sans-serif;
+  white-space:nowrap; line-height:1.7;
+  box-shadow:0 12px 32px rgba(0,0,0,0.6);
+  min-width:230px;
+  transition:opacity 0.15s;">
+</div>
+
+<script>
+function _showAttTip(badge) {
+  const tip  = document.getElementById('kpi-att-tip');
+  if (!tip || !tip.innerHTML.trim()) return;
+  const rect = badge.getBoundingClientRect();
+  tip.style.display = 'block';
+  // Position: below and right-aligned to badge
+  const tipW = 240; // approximate min-width
+  let left   = rect.right - tipW;
+  let top    = rect.bottom + 8;
+  // Clamp to viewport
+  if (left < 8) left = 8;
+  if (top + 120 > window.innerHeight) top = rect.top - 120 - 8;
+  tip.style.left    = left + 'px';
+  tip.style.top     = top  + 'px';
+  requestAnimationFrame(() => { tip.style.opacity = '1'; });
+}
+function _hideAttTip() {
+  const tip = document.getElementById('kpi-att-tip');
+  if (!tip) return;
+  tip.style.opacity = '0';
+  setTimeout(() => { tip.style.display = 'none'; }, 150);
+}
+</script>
 </body>
 </html>
