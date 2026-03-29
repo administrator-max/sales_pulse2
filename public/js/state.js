@@ -13,12 +13,12 @@ const QTY_PROD_LABELS = [
 ];
 
 const PROD_CATS = [
-  { key:'sheetPile',  label:'Sheet Pile', color:'#4ade80', rgba:'rgba(74,222,128,0.85)', match: n => n.includes('mlion')||n.includes('sheet pile') },
-  { key:'weldedPipe', label:'Pipe',       color:'#22d3ee', rgba:'rgba(34,211,238,0.85)', match: n => n.includes('youfa')||n.includes('welded')||(n.includes('pipe')&&!n.includes('erw'))||n.includes('seamless') },
-  { key:'erwPipe',    label:'ERW Pipe',   color:'#67e8f9', rgba:'rgba(103,232,249,0.85)', match: n => n.includes('erw') },
-  { key:'gl',         label:'GL',         color:'#818cf8', rgba:'rgba(129,140,248,0.85)', match: n => n.includes('gl')||n.includes('galvalume') },
-  { key:'gi',         label:'GI',         color:'#38bdf8', rgba:'rgba(56,189,248,0.85)', match: n => n.includes('gi ')||n.includes('galvanized')||n.includes(' gi') },
-  { key:'ppgl',       label:'PPGL',       color:'#f59e0b', rgba:'rgba(245,158,11,0.85)', match: n => n.includes('sssc')||n.includes('ppgl')||n.includes('coil') },
+  { key:'sheetPile',  label:'Sheet Pile', color:'#2196f3', rgba:'rgba(33,150,243,0.85)',  match: n => n.includes('mlion')||n.includes('sheet pile') },
+  { key:'weldedPipe', label:'Pipe',       color:'#43a047', rgba:'rgba(67,160,71,0.85)',   match: n => n.includes('youfa')||n.includes('welded')||(n.includes('pipe')&&!n.includes('erw'))||n.includes('seamless') },
+  { key:'erwPipe',    label:'ERW Pipe',   color:'#0288d1', rgba:'rgba(2,136,209,0.85)',   match: n => n.includes('erw') },
+  { key:'gl',         label:'GL',         color:'#00897b', rgba:'rgba(0,137,123,0.85)',   match: n => n.includes('gl')||n.includes('galvalume') },
+  { key:'gi',         label:'GI',         color:'#66bb6a', rgba:'rgba(102,187,106,0.85)', match: n => n.includes('gi ')||n.includes('galvanized')||n.includes(' gi') },
+  { key:'ppgl',       label:'PPGL',       color:'#1565c0', rgba:'rgba(21,101,192,0.85)',  match: n => n.includes('sssc')||n.includes('ppgl')||n.includes('coil') },
 ];
 
 // Dynamic State (Fetched exclusively from DB)
@@ -186,13 +186,14 @@ function getPlanQtyByProduct(){
 }
 
 function getBudgetQty() {
+    const fm  = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
     const res = {};
     PROD_CATS.forEach(c => {
-        res[c.key] = {
-            label: c.label,
-            color: c.color,
-            budgetMT: (BUDGET.qty[c.key] || []).reduce((a,b) => a+b, 0)
-        };
+        const arr = BUDGET.qty[c.key] || [];
+        const budgetMT = fm === -1
+          ? arr.reduce((a,b) => a+b, 0)        // All months
+          : (arr[fm] || 0);                     // Specific month
+        res[c.key] = { label: c.label, color: c.color, budgetMT };
     });
     return res;
 }
@@ -200,15 +201,16 @@ function getBudgetQty() {
 function getActualQtyMT() {
   let res = {};
   PROD_CATS.forEach(c => res[c.key] = 0);
-  MONTH_KEYS.forEach(mk => {
+  // Gunakan getActiveMonthKeys jika tersedia (dari ui.js), fallback ke semua bulan
+  const keys = (typeof getActiveMonthKeys === 'function') ? getActiveMonthKeys() : MONTH_KEYS;
+  keys.forEach(mk => {
       (QTY_DATA[mk] || []).forEach(p => {
           const mt = weightToMT(p.totalWeight);
-          // Gunakan p.category (dari server) sebagai primary; fallback ke name-match
           const match = p.category
             ? PROD_CATS.find(c => c.key === p.category)
             : PROD_CATS.find(c => c.match(p.name.toLowerCase()));
           if(match) res[match.key] += mt;
-      })
+      });
   });
   return res;
 }

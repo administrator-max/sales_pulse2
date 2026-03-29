@@ -90,7 +90,7 @@ function buildChart() {
 
         const pct    = (tot / bgt * 100).toFixed(0) + '%';
         const isOver = tot >= bgt;
-        const color  = isOver ? '#4ade80' : '#fb923c';
+        const color  = isOver ? '#0f7343' : '#b45309';
 
         // Selalu tampilkan di ATAS puncak bar
         const yPos = yTop - 6;
@@ -100,8 +100,8 @@ function buildChart() {
         ctx.fillStyle    = color;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-        ctx.shadowBlur   = 4;
+        ctx.shadowColor  = 'rgba(255,255,255,0.8)';
+        ctx.shadowBlur   = 5;
         ctx.fillText(pct, xCenter, yPos);
         ctx.restore();
       }
@@ -119,7 +119,7 @@ function buildChart() {
           type: 'bar',
           data: budgetFiltered,
           backgroundColor: 'rgba(255,255,255,0.0)',
-          borderColor: 'rgba(255,255,255,0.30)',
+          borderColor: 'rgba(26,68,128,0.25)',
           borderWidth: 2,
           borderRadius: 4,
           borderSkipped: false,
@@ -163,22 +163,26 @@ function buildChart() {
       responsive: true,
       maintainAspectRatio: true,
       clip: false,
-      aspectRatio: fm === -1 ? 3.5 : 2.0,  // lebih tinggi kalau hanya 1 bulan
+      aspectRatio: fm === -1 ? 3.5 : 2.0,
+      layout: {
+        padding: { top: 28, bottom: 4, left: 4, right: 4 }
+      },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
           display: true, position: 'top', align: 'end',
           labels: {
-            color: '#94a3b8', font: { size: 11 }, boxWidth: 12, boxHeight: 8, padding: 16,
+            color: '#5a7a99', font: { size: 11 }, boxWidth: 10, boxHeight: 8, padding: 18,
             filter: item => item.text !== 'Budget'
               && !item.text.startsWith('Plan ')
               
           }
         },
         tooltip: {
-          backgroundColor: '#141618', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
+          backgroundColor: '#ffffff', borderColor: '#d4e6f7', borderWidth: 1,
           titleFont: { family: "'Barlow Condensed',sans-serif", size: 14, weight: '700' },
           bodyFont:  { family: "'Barlow',sans-serif", size: 12 }, padding: 12,
+          titleColor: '#1a2f4a', bodyColor: '#3d617f',
           callbacks: {
             title: items => {
               const slot = items[0].dataIndex;
@@ -221,7 +225,7 @@ function buildChart() {
               return lines;
             },
             labelColor: ctx => {
-              if (ctx.dataset.label === 'Budget') return { borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.15)' };
+              if (ctx.dataset.label === 'Budget') return { borderColor: '#b8d4ee', backgroundColor: '#eaf3ff' };
               const lbl = ctx.dataset.label.replace('Plan ', '');
               const cat = PROD_CATS.find(c => c.label === lbl);
               return cat ? { borderColor: cat.color, backgroundColor: cat.color } : {};
@@ -236,16 +240,16 @@ function buildChart() {
             font: { size: 12, family: "'Barlow Condensed',sans-serif", weight: '600' },
             color: idx => {
               if (fm === -1) return '#606870';
-              return idx.index === 0 ? '#22d3ee' : '#606870';
+              return idx.index === 0 ? '#1e5aa8' : '#5a7a99';
             }
           },
           stacked: true
         },
         y: {
-          grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false },
+          grid: { color: '#eaf3ff' }, border: { display: false },
           stacked: true,
           ticks: {
-            font: { size: 10 }, color: '#606870',
+            font: { size: 10 }, color: '#5a7a99',
             callback: v => Math.round(v).toLocaleString('id-ID') + ' MT'
           }
         }
@@ -297,10 +301,10 @@ function buildTable() {
       : gap>=0 ? `<td style="color:var(--ok);font-size:11px">+${fmt(gap,2)}</td>`
       : `<td style="color:var(--over);font-size:11px">${fmt(gap,2)}</td>`;
 
-    const actualColor = actual!=null?(isPS?'#f59e0b':'var(--actual)'):'var(--muted)';
+    const actualColor = actual!=null?(isPS?'#1e5aa8':'var(--actual)'):'var(--muted)';
     const tr = document.createElement('tr');
     if(isCur) tr.classList.add('is-current');
-    if(isPS)  tr.style.background='rgba(245,158,11,0.03)';
+    if(isPS)  { tr.style.background='#f0f7ff'; }
     tr.innerHTML = `
       <td>${m} ${statusPill}</td>
       <td>${fmt(budget,2)}</td>
@@ -345,7 +349,7 @@ function buildWaterfall() {
     const isPS = PS_CHAINS[m.toLowerCase()] && PS_CHAINS[m.toLowerCase()].length > 0;
     const budgetW=(budget/maxBudget)*100;
     const actualW=actual!=null && budget > 0 ? Math.min((actual/budget)*budgetW,budgetW):0;
-    const actualColor=actual==null?'transparent':isPS?'#f59e0b':(actual/budget)>=0.8?'var(--actual)':(actual/budget)>=0.3?'var(--warn)':'var(--over)';
+    const actualColor=actual==null?'transparent':isPS?'#1e5aa8':(actual/budget)>=0.8?'var(--actual)':(actual/budget)>=0.3?'var(--warn)':'var(--over)';
     const div=document.createElement('div');
     div.className='wf-row';
     div.innerHTML=`<div class="wf-month" style="${isPS?'color:#f59e0b':''}">${m}</div><div class="wf-track"><div class="wf-bg"></div><div class="wf-budget-bar" style="width:${budgetW}%"></div><div class="wf-actual-bar" data-w="${actualW}" style="background:${actualColor}"></div></div><div class="wf-val" style="color:${actual!=null?actualColor:'var(--muted)'}">  ${actual!=null?fmt(actual,2):fmt(budget,2)}</div>`;
@@ -384,9 +388,6 @@ function updateKPIs() {
       attEl.textContent  = att + '%';
       attEl.className    = 'kpi-delta ' + (att>=80 ? 'delta-good' : att>=30 ? 'delta-na' : 'delta-bad');
       // Hapus position:absolute dari element karena sudah di wrapper
-      attEl.style.position = 'relative';
-      attEl.style.top      = 'auto';
-      attEl.style.right    = 'auto';
     }
     if (attTip) {
       attTip.innerHTML = `
@@ -406,7 +407,7 @@ function updateKPIs() {
         </div>`;
     }
   } else {
-    if (attEl) { attEl.textContent = '—'; attEl.className = 'kpi-delta delta-na'; attEl.style.position='relative'; attEl.style.top='auto'; attEl.style.right='auto'; }
+    if (attEl) { attEl.textContent = '—'; attEl.className = 'kpi-delta delta-na'; }
     if (attTip) attTip.innerHTML = '<div style="color:var(--muted);">Belum ada data aktual untuk periode ini.</div>';
   }
 
@@ -425,14 +426,35 @@ function updateKPIs() {
 }
 
 // ── ANALYTICS CARDS LOGIC ──
+// ── Filter helper: return month keys yang aktif sesuai FILTER_MONTH ──────────
+function getActiveMonthKeys() {
+  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+  if (fm === -1) return MONTH_KEYS;                    // All months
+  return [MONTH_KEYS[fm]];                             // Specific month
+}
+
+function getActiveChains() {
+  const keys = getActiveMonthKeys();
+  const result = {};
+  keys.forEach(mk => { if (PS_CHAINS[mk]) result[mk] = PS_CHAINS[mk]; });
+  return result;
+}
+
+function getActiveQtyData() {
+  const keys = getActiveMonthKeys();
+  const result = {};
+  keys.forEach(mk => { if (QTY_DATA[mk]) result[mk] = QTY_DATA[mk]; });
+  return result;
+}
+
 function getProdCategoryData() {
   // 5 kategori produk — GI dan GL ditambahkan agar tidak salah masuk ke PPGL
   const cats = {
-    sheetPile:  { label:'Sheet Pile',   color:'#4ade80', margin:0, revenue:0, mt:0, projects:[] },
-    weldedPipe: { label:'Welded Pipes', color:'#22d3ee', margin:0, revenue:0, mt:0, projects:[] },
-    ppgl:       { label:'PPGL / Coil',  color:'#f59e0b', margin:0, revenue:0, mt:0, projects:[] },
-    gi:         { label:'GI Steel',     color:'#38bdf8', margin:0, revenue:0, mt:0, projects:[] },
-    gl:         { label:'GL Steel',     color:'#818cf8', margin:0, revenue:0, mt:0, projects:[] },
+    sheetPile:  { label:'Sheet Pile',   color:'#2196f3', margin:0, revenue:0, mt:0, projects:[] },
+    weldedPipe: { label:'Welded Pipes', color:'#43a047', margin:0, revenue:0, mt:0, projects:[] },
+    ppgl:       { label:'PPGL / Coil',  color:'#1565c0', margin:0, revenue:0, mt:0, projects:[] },
+    gi:         { label:'GI Steel',     color:'#66bb6a', margin:0, revenue:0, mt:0, projects:[] },
+    gl:         { label:'GL Steel',     color:'#00897b', margin:0, revenue:0, mt:0, projects:[] },
   };
 
   // Helper: klasifikasi project dari nama (untuk data lama/seeded yang tidak punya category)
@@ -446,21 +468,20 @@ function getProdCategoryData() {
     return 'ppgl'; // fallback
   }
 
-  // Margin & revenue dari PS_CHAINS — cari category dari QTY_DATA entry yang nama-nya sama
-  Object.entries(PS_CHAINS).forEach(([mk, chains]) => {
+  // Margin & revenue — filter bulan aktif
+  Object.entries(getActiveChains()).forEach(([mk, chains]) => {
     chains.forEach(ch => {
-      // Cari di QTY_DATA bulan yang sama untuk dapat p.category dari server
       const qEntry = (QTY_DATA[mk] || []).find(p => p.name === ch.name);
       const key = (qEntry && qEntry.category) ? qEntry.category : classifyByName(ch.name);
-      if (!cats[key]) return; // skip unknown
+      if (!cats[key]) return;
       cats[key].margin  += ch.margin;
       cats[key].revenue += ch.revenue;
       if (!cats[key].projects.includes(ch.name)) cats[key].projects.push(ch.name);
     });
   });
 
-  // Volume (MT) dari QTY_DATA — gunakan p.category langsung
-  Object.values(QTY_DATA).forEach(projs => {
+  // Volume (MT) — filter bulan aktif
+  Object.values(getActiveQtyData()).forEach(projs => {
     projs.forEach(p => {
       const key = p.category ? p.category : classifyByName(p.name);
       if (!cats[key]) return;
@@ -474,7 +495,7 @@ function getProdCategoryData() {
 
 function getCustomerData() {
   const custMap = {};
-  Object.values(PS_CHAINS).forEach(chains => {
+  Object.values(getActiveChains()).forEach(chains => {
       chains.forEach(ch => {
           if(!custMap[ch.customer]) custMap[ch.customer]={margin:0,revenue:0,projects:[],kg:0};
           custMap[ch.customer].margin  += ch.margin;
@@ -482,7 +503,7 @@ function getCustomerData() {
           if (!custMap[ch.customer].projects.includes(ch.name)) custMap[ch.customer].projects.push(ch.name);
       });
   });
-  Object.values(QTY_DATA).forEach(projs => {
+  Object.values(getActiveQtyData()).forEach(projs => {
       projs.forEach(p => {
           if(custMap[p.customer]) custMap[p.customer].kg += parseInt((p.totalWeight||'').replace(/[^0-9]/g,''))||0;
       });
@@ -493,19 +514,26 @@ function getCustomerData() {
 function buildAnalytics() {
   const mq = document.getElementById('mini-qty');
   if(mq) {
+    const activeQD   = getActiveQtyData();
+    const activeKeys  = getActiveMonthKeys();
+    const fm          = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+    const periodLabel = fm === -1 ? 'YTD' : (typeof _MS !== 'undefined' ? _MS[fm] : MONTH_KEYS[fm]);
     let totalMT = 0;
-    Object.values(QTY_DATA).forEach(projs => projs.forEach(p => totalMT += weightToMT(p.totalWeight)));
-    const totalBudgMT = getBudgetQtyMonthly().reduce((a,b)=>a+b,0);
+    Object.values(activeQD).forEach(projs => projs.forEach(p => totalMT += weightToMT(p.totalWeight)));
+    const budgetMonthly = getBudgetQtyMonthly();
+    const totalBudgMT = fm === -1
+      ? budgetMonthly.reduce((a,b)=>a+b,0)
+      : (budgetMonthly[fm] || 0);
     const totalPct = totalBudgMT > 0 ? (totalMT/totalBudgMT*100) : 0;
-    const pctColor = totalPct>=100?'var(--ok)':totalPct>=50?'var(--warn)':'#f87171';
+    const pctColor = totalPct>=100?'var(--ok)':totalPct>=50?'var(--warn)':'var(--over)';
     
     mq.innerHTML = `
-      <div class="mini-highlight" style="color:#22d3ee">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
+      <div class="mini-highlight" style="color:#1e5aa8">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
       <div class="mini-sub">of ${totalBudgMT.toLocaleString('id-ID')} MT · <span style="color:${pctColor};font-weight:700">${totalPct.toFixed(1)}%</span></div>
       <div class="mini-badges">
-        ${MONTH_KEYS.map(mk => {
+        ${activeKeys.map(mk => {
             const mt = (QTY_DATA[mk]||[]).reduce((s,p)=>s+weightToMT(p.totalWeight),0);
-            return mt > 0 ? `<span class="mini-badge" style="background:#22d3ee22;color:#22d3ee">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
+            return mt > 0 ? `<span class="mini-badge" style="background:#e8f0fe;color:#1e5aa8">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
         }).join('')}
       </div>
     `;
@@ -518,15 +546,15 @@ function buildAnalytics() {
   const mpM = document.getElementById('mini-prod-margin');
   if(mpM) mpM.innerHTML = `
     <div class="mini-highlight" style="color:var(--ok)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">YTD · ${prodCats.length} kategori produk</div>
+    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} kategori produk</div>
     <div class="mini-badges">
       ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}22;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
     </div>`;
     
   const mpQ = document.getElementById('mini-prod-qty');
   if(mpQ) mpQ.innerHTML = `
-    <div class="mini-highlight" style="color:#a78bfa">${Math.round(totalMTProd).toLocaleString('id-ID')} MT</div>
-    <div class="mini-sub">YTD · volume produk</div>
+    <div class="mini-highlight" style="color:#1a4480">${Math.round(totalMTProd).toLocaleString('id-ID')} MT</div>
+    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · volume produk</div>
     <div class="mini-badges">
       ${[...prodCats].sort((a,b)=>b.mt-a.mt).map(p=>`<span class="mini-badge" style="background:${p.color}22;color:${p.color}">${p.label}: ${Math.round(p.mt).toLocaleString('id-ID')} MT</span>`).join('')}
     </div>`;
@@ -536,20 +564,20 @@ function buildAnalytics() {
   const top1m = byMargin[0];
   const mc = document.getElementById('mini-cust-margin');
   if(mc && top1m) mc.innerHTML = `
-    <div class="mini-highlight" style="color:#4ade80">${top1m[1].margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
+    <div class="mini-highlight" style="color:#0f7343">${top1m[1].margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
     <div class="mini-sub">${top1m[0].replace('PT. ','').replace(' Indonesia','')}</div>
     <div class="mini-badges">
-      ${byMargin.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#4ade8022;color:#4ade80">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
+      ${byMargin.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#e6f4ea;color:#0f7343">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
     </div>`;
 
   const byQty = Object.entries(custMap).filter(([,v])=>v.kg>0).sort((a,b)=>b[1].kg-a[1].kg);
   const top1q = byQty[0];
   const mq2 = document.getElementById('mini-cust-qty');
   if(mq2 && top1q) mq2.innerHTML = `
-    <div class="mini-highlight" style="color:#f59e0b">${Math.round(top1q[1].kg/1000).toLocaleString('id-ID')} MT</div>
+    <div class="mini-highlight" style="color:#1e5aa8">${Math.round(top1q[1].kg/1000).toLocaleString('id-ID')} MT</div>
     <div class="mini-sub">${top1q[0].replace('PT. ','').replace(' Indonesia','')}</div>
     <div class="mini-badges">
-      ${byQty.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#f59e0b22;color:#f59e0b">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
+      ${byQty.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#e8f0fe;color:#1e5aa8">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
     </div>`;
 }
 

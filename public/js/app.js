@@ -191,16 +191,16 @@ function renderUploadPreview(errors) {
     const totalWeightKg   = files.reduce((s, f) => f.items.reduce((ss, it) => ss + (it.totalWeight || 0), 0) + s, 0);
     const consolidatedPct = totalSalesIDR > 0 ? (totalMarginIDR / totalSalesIDR * 100).toFixed(2) : '0.00';
     const isMulti         = files.length > 1;
-    const accentColor     = isMulti ? '#a78bfa' : '#22d3ee';
-    const borderColor     = isMulti ? 'rgba(167,139,250,0.3)' : 'var(--border2)';
-    const bgColor         = isMulti ? 'rgba(167,139,250,0.06)' : 'var(--s2)';
+    const accentColor     = isMulti ? '#1e5aa8' : '#0288d1';
+    const borderColor     = isMulti ? 'rgba(30,90,168,0.25)' : 'var(--border2)';
+    const bgColor         = isMulti ? '#f0f7ff' : 'var(--s2)';
 
     // Per-file rows
     const fileRows = files.map(f => {
       const h     = f.header;
       const isFx  = h.baseCurrency && h.baseCurrency !== 'IDR';
       const fxStr = isFx
-        ? `<div style="font-size:10px;color:#f59e0b;margin-top:3px;">
+        ? `<div style="font-size:10px;color:var(--muted2);margin-top:3px;">
              FX: ${Number(h.netMarginNative || 0).toLocaleString('id-ID')} ${h.baseCurrency}
              &times; ${Number(h.fxToIDR || DEFAULT_FX_RATE).toLocaleString('id-ID')}
              = ${fmtM(h.marginIDR)}
@@ -240,8 +240,8 @@ function renderUploadPreview(errors) {
 
     // Consolidated footer (only for multi-file groups)
     const consolidatedFooter = isMulti ? `
-      <div style="padding:10px 16px;background:rgba(74,222,128,0.05);display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ok);">Total Konsolidasi</div>
+      <div style="padding:10px 16px;background:#eaf3ff;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--actual);">Total Konsolidasi</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:800;color:var(--ok);">
           ${fmtM(totalMarginIDR)}
           <span style="font-size:12px;color:var(--muted2);margin-left:4px;">${consolidatedPct}%</span>

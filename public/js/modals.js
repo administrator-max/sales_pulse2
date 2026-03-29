@@ -38,12 +38,12 @@ function buildAnalyticsDetail(type) {
       let totalMT = Object.values(actual).reduce((a,b)=>a+b,0);
       const totalBudg = Object.values(bqt).reduce((s, b) => s + b.budgetMT, 0);
       const totPct = totalBudg > 0 ? (totalMT/totalBudg*100) : 0;
-      const pctCol = totPct>=100?'var(--ok)':totPct>=50?'var(--warn)':'#f87171';
+      const pctCol = totPct>=100?'var(--ok)':totPct>=50?'var(--warn)':'var(--over)';
       
       let h = `<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total YTD</div>
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:38px;font-weight:800;color:#22d3ee;line-height:1">${fmtN(totalMT)} MT</div>
+            <div style="font-family:Barlow Condensed,sans-serif;font-size:38px;font-weight:800;color:var(--actual);line-height:1">${fmtN(totalMT)} MT</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;">of ${fmtN(totalBudg)} MT full year budget</div></div>
           <div style="text-align:right"><div style="font-family:Barlow Condensed,sans-serif;font-size:48px;font-weight:800;line-height:1;color:${pctCol}">${totPct.toFixed(1)}%</div>
             <div style="font-size:11px;color:var(--muted)">achievement</div></div>
@@ -54,7 +54,7 @@ function buildAnalyticsDetail(type) {
           const act=actual[bq.key]||0;
           const bgt = bqt[bq.key].budgetMT;
           const pct= bgt > 0 ? act/bgt*100 : 0;
-          const col=pct>=100?'var(--ok)':pct>=50?'var(--warn)':'#f87171';
+          const col=pct>=100?'var(--ok)':pct>=50?'var(--warn)':'var(--over)';
           
           h+=`<div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
@@ -92,7 +92,7 @@ function buildAnalyticsDetail(type) {
         const marginW=(p.margin/maxM*100).toFixed(1);
         const mtW=(p.mt/maxMT*100).toFixed(1);
         const avgPct=p.revenue>0?(p.margin/p.revenue*100).toFixed(2):0;
-        const pc=avgPct>=12?'var(--ok)':avgPct>=8?'var(--warn)':'#f87171';
+        const pc=avgPct>=12?'var(--ok)':avgPct>=8?'var(--warn)':'var(--over)';
         h+=`<div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.05);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:8px;">
@@ -133,7 +133,7 @@ function buildAnalyticsDetail(type) {
       const sorted = type==='cust-margin'
         ? Object.entries(custMap).sort((a,b)=>b[1].margin-a[1].margin)
         : Object.entries(custMap).filter(([,v])=>v.kg>0).sort((a,b)=>b[1].kg-a[1].kg);
-      const rankColors=['#f59e0b','#94a3b8','#fb923c','#22d3ee','#a78bfa'];
+      const rankColors=['#1e5aa8','#0f7343','#0288d1','#00897b','#1565c0'];
       const maxVal = type==='cust-margin' ? (sorted[0]?.[1].margin||1) : (sorted[0]?.[1].kg||1);
       
       let h=`<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
@@ -265,9 +265,9 @@ function renderBudgetForm() {
   grid.innerHTML = QTY_PROD_LABELS.map(p => {
     const val = BUDGET.qty[p.key][activeBudgetMonth] || 0;
     return `
-      <div style="background:var(--s2);border-radius:6px;padding:8px;">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${p.label} (MT)</div>
-        <input type="number" id="bgt-qty-${p.key}" value="${val}" style="width:100%;background:transparent;border:none;color:#fff;font-weight:bold;outline:none;">
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:8px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">${p.label} (MT)</div>
+        <input type="number" id="bgt-qty-${p.key}" value="${val}" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:700;font-size:15px;font-family:'Barlow Condensed',sans-serif;outline:none;">
       </div>`;
   }).join('');
 }
@@ -314,7 +314,7 @@ function openModal(idx) {
     const totalRev = chains.reduce((a,c)=>a+c.revenue,0);
     const totalPct = totalRev > 0 ? (totalMargin/totalRev*100).toFixed(2) : 0;
     
-    const colors=['#f59e0b','#a78bfa','#22d3ee','#4ade80','#fb923c'];
+    const colors=['#1e5aa8','#0f7343','#0288d1','#00897b','#1565c0'];
     let html=`<div class="modal-ps-title">📋 PS Consolidated · ${monthLabel} · ${chains.length} Proyek</div>`;
     chains.forEach((c, i) => {
       const col  = colors[i%colors.length];
@@ -363,7 +363,7 @@ function openModal(idx) {
           ${isMulti ? '<div style="margin-top:6px;">' + deleteButtons + '</div>' : ''}
         </div>`;
     });
-    html+=`<div style="background:rgba(34,211,238,0.06);border-radius:6px;padding:10px 12px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);margin-bottom:8px;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--actual)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--ok)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;
+    html+=`<div style="background:#eaf3ff;border-radius:6px;padding:10px 12px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);margin-bottom:8px;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--actual)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--ok)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;
     psInner.innerHTML=html;
   } else {
     psSection.style.display = 'none';
@@ -374,7 +374,7 @@ function openModal(idx) {
   const mPctVal = marginP!=null?marginP.toFixed(2)+'%': (isPS?(totalMarginPctVal):'—');
   document.getElementById('modal-kpis').innerHTML=`
     <div class="modal-kpi"><div class="modal-kpi-l">Budget Margin</div><div class="modal-kpi-v" style="color:var(--budget)">${fmt(budget,2)}</div><div class="modal-kpi-s">MB 2026</div></div>
-    <div class="modal-kpi"><div class="modal-kpi-l">Actual Margin${isPS?' (Consol.)':''}</div><div class="modal-kpi-v" style="color:${actual!=null?(isPS?'#f59e0b':'var(--actual)'):'var(--muted)'}">${actual!=null?fmt(actual,2):'—'}</div><div class="modal-kpi-s">${actual!=null?(isPS?'PS consolidated':'reported'):'Belum dientry'}</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-l">Actual Margin${isPS?' (Consol.)':''}</div><div class="modal-kpi-v" style="color:${actual!=null?'var(--actual)':'var(--muted)'}">${actual!=null?fmt(actual,2):'—'}</div><div class="modal-kpi-s">${actual!=null?(isPS?'PS consolidated':'reported'):'Belum dientry'}</div></div>
     <div class="modal-kpi"><div class="modal-kpi-l">${isPS?'Margin %':'Plan Margin'}</div><div class="modal-kpi-v" style="color:${isPS?'var(--ok)':plan!=null?'var(--plan)':'var(--muted)'}">${isPS?mPctVal:plan!=null?fmt(plan,2):'—'}</div><div class="modal-kpi-s">${isPS?'of end sales':'pipeline'}</div></div>
   `;
 
@@ -494,15 +494,15 @@ function printMonthReport() {
     '@page{size:A4;margin:16mm 14mm 16mm 14mm;}' +
     '*{margin:0;padding:0;box-sizing:border-box;}' +
     'body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff;}' +
-    '.rh{border-bottom:3px solid #0f172a;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;}' +
-    '.rtitle{font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;}' +
-    '.rtitle span{color:#1a73e8;}' +
+    '.rh{border-bottom:3px solid #1a4480;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;}' +
+    '.rtitle{font-size:20px;font-weight:700;color:#1a2f4a;letter-spacing:-0.5px;}' +
+    '.rtitle span{color:#1e5aa8;}' +
     '.rsub{font-size:10px;color:#64748b;margin-top:3px;}' +
     '.rmeta{text-align:right;font-size:10px;color:#64748b;line-height:1.9;}' +
     '.rmeta strong{color:#0f172a;}' +
     '.section-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#94a3b8;margin-bottom:7px;margin-top:14px;}' +
     'table{width:100%;border-collapse:collapse;}' +
-    'thead tr{background:#0f172a;}' +
+    'thead tr{background:#1a4480;}' +
     'thead th{color:#fff;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:9px 10px;text-align:left;font-weight:600;}' +
     'thead th.r{text-align:right;}' +
     'thead th.c{text-align:center;}' +
@@ -512,18 +512,18 @@ function printMonthReport() {
     '.td-num{padding:10px;text-align:right;vertical-align:top;}' +
     '.td-pct{padding:10px;text-align:center;vertical-align:top;width:9%;}' +
     '.proj-name{font-size:12px;font-weight:700;color:#0f172a;margin-bottom:2px;}' +
-    '.proj-ps{font-size:9px;color:#1a73e8;margin-bottom:2px;}' +
+    '.proj-ps{font-size:9px;color:#1e5aa8;margin-bottom:2px;}' +
     '.proj-customer{font-size:9px;color:#64748b;}' +
     '.num-main{font-size:11px;font-weight:600;color:#1e293b;}' +
     '.num-sub{font-size:9px;color:#94a3b8;margin-top:2px;}' +
-    '.total-row{background:#1e293b!important;}' +
+    '.total-row{background:#1a4480!important;}' +
     '.total-row td{padding:11px 10px;border-bottom:none!important;}' +
     '.total-label{font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;}' +
-    '.total-val{font-size:13px;font-weight:700;color:#22d3ee;text-align:right;}' +
+    '.total-val{font-size:13px;font-weight:700;color:#ffffff;text-align:right;}' +
     '.total-val-sub{font-size:9px;color:#64748b;text-align:right;margin-top:2px;}' +
-    '.total-pct{font-size:13px;font-weight:700;color:#4ade80;text-align:center;}' +
-    '.ach{margin-top:20px;border:2px solid #0f172a;border-radius:8px;overflow:hidden;}' +
-    '.ach-hdr{background:#0f172a;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}' +
+    '.total-pct{font-size:13px;font-weight:700;color:#a8d8ff;text-align:center;}' +
+    '.ach{margin-top:20px;border:2px solid #1a4480;border-radius:8px;overflow:hidden;}' +
+    '.ach-hdr{background:#1a4480;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}' +
     '.ach-hdr-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#94a3b8;}' +
     '.ach-hdr-status{font-size:13px;font-weight:700;color:' + achBgColor + ';}' +
     '.ach-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:none;}' +
@@ -708,7 +708,7 @@ function spUpdateTotalStrip(idx){
   strip.style.display = t.count > 0 ? 'flex' : 'none';
   const budget = BUDGET.margin[idx];
   const pct    = budget > 0 ? (t.margin/budget*100) : 0;
-  const pctColor = pct >= 100 ? '#4ade80' : pct >= 60 ? '#facc15' : '#fb923c';
+  const pctColor = pct >= 100 ? 'var(--ok)' : pct >= 60 ? 'var(--warn)' : 'var(--over)';
   document.getElementById('sp-total-margin').textContent = t.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' M IDR';
   document.getElementById('sp-total-pct').style.color = pctColor;
   document.getElementById('sp-total-pct').textContent  = pct.toFixed(1)+'% vs Budget';
@@ -749,7 +749,7 @@ function spUpdatePct(){
   const el = document.getElementById('sp-pct-display');
   if(!isNaN(v) && budget > 0){
     const pct = (v/budget*100);
-    const color = pct>=100?'#4ade80':pct>=60?'#facc15':'#fb923c';
+    const color = pct>=100?'var(--ok)':pct>=60?'var(--warn)':'var(--over)';
     el.textContent = pct.toFixed(1)+'%';
     el.style.color = color;
   } else {
@@ -765,7 +765,7 @@ window.spUpdateQtyPct = function(key, budget, otherTotal, val){
   const combined = v + otherTotal;
   if(budget > 0){
     el.textContent = (combined/budget*100).toFixed(0)+'%';
-    el.style.color  = combined >= budget ? '#4ade80' : '#fb923c';
+    el.style.color  = combined >= budget ? 'var(--ok)' : 'var(--over)';
   } else { el.textContent = ''; }
 };
 
@@ -799,10 +799,10 @@ function loadPlanForm(idx) {
     const planNum    = parseFloat(savedVal) || 0;
     const combined   = planNum + otherTotal;
     const bgtPct     = budgetVal > 0 ? (combined/budgetVal*100).toFixed(0)+'%' : '';
-    const pctColor   = budgetVal > 0 ? (combined>=budgetVal?'#4ade80':'#fb923c') : 'var(--muted)';
+    const pctColor   = budgetVal > 0 ? (combined>=budgetVal?'var(--ok)':'var(--over)') : 'var(--muted)';
 
     return '<div style="background:var(--s2);border-radius:6px;padding:8px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px;">'+p.label+'</div>'
-        + '<input type="number" id="sp-qty-'+p.key+'" value="'+savedVal+'" style="width:100%;background:transparent;border:none;color:#fff;font-weight:bold;outline:none;" oninput="spUpdateQtyPct(\''+p.key+'\','+budgetVal+','+otherTotal+',this.value)">'
+        + '<input type="number" id="sp-qty-'+p.key+'" value="'+savedVal+'" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:bold;outline:none;" oninput="spUpdateQtyPct(\''+p.key+'\','+budgetVal+','+otherTotal+',this.value)">'
         + '<div style="display:flex;justify-content:space-between;margin-top:4px;">'
         + '<span style="font-size:9px;color:var(--muted);">Bgt: '+budgetVal.toLocaleString('id-ID')+' MT</span>'
         + '<span id="sp-qty-pct-'+p.key+'" style="font-size:9px;font-weight:700;color:'+pctColor+';">'+bgtPct+'</span>'
@@ -835,7 +835,7 @@ function spBuildHistory(idx){
     const mv   = parseFloat(r.margin);
     const pct  = !isNaN(mv) && budget>0 ? (mv/budget*100) : null;
     const pc   = pct==null ? '—' : pct.toFixed(1)+'%';
-    const pcColor = pct==null?'var(--muted)':pct>=100?'#4ade80':pct>=60?'#facc15':'#fb923c';
+    const pcColor = pct==null?'var(--muted)':pct>=100?'var(--ok)':pct>=60?'var(--warn)':'var(--over)';
     const isActive = i === SP_ACTIVE_REV[idx];
     html += '<tr style="border-bottom:1px solid var(--border);background:'+(isActive?'rgba(56,189,248,0.05)':'transparent')+';cursor:pointer;" onclick="spSelectRev('+i+')">'
       + '<td style="padding:5px 8px;color:'+(isActive?'#38bdf8':'var(--text)')+';font-weight:'+(isActive?700:400)+';">'+(r.name||spRevLabel(i))+(isActive?' ●':'')+'</td>'
@@ -845,7 +845,7 @@ function spBuildHistory(idx){
       + '<td style="padding:5px 8px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.notes||'')+'</td>'
       + '</tr>';
   });
-  const tpctColor = t.margin > 0 && budget > 0 ? ((t.margin/budget*100)>=100?'#4ade80':(t.margin/budget*100)>=60?'#facc15':'#fb923c') : 'var(--muted)';
+  const tpctColor = t.margin > 0 && budget > 0 ? ((t.margin/budget*100)>=100?'var(--ok)':(t.margin/budget*100)>=60?'var(--warn)':'var(--over)') : 'var(--muted)';
   html += '<tr style="border-top:1px solid var(--border2);background:rgba(255,255,255,0.03);">'
     + '<td style="padding:5px 8px;color:var(--muted2);font-weight:700;">TOTAL ('+revs.length+' deals)</td>'
     + '<td style="padding:5px 8px;text-align:right;color:#38bdf8;font-family:Barlow Condensed,sans-serif;font-weight:800;">'+t.margin.toLocaleString('id-ID',{minimumFractionDigits:2})+'</td>'
@@ -921,7 +921,7 @@ function renderQtyBreakdown() {
   const totalBudget = budgetQtyMonthly[mi];
   const totalPct    = totalBudget > 0 ? (totalActual/totalBudget*100) : (totalActual > 0 ? Infinity : 0);
   const hasActual   = totalActual > 0;
-  const achColor    = totalPct >= 100 ? '#4ade80' : totalPct >= 60 ? '#facc15' : '#fb923c';
+  const achColor    = totalPct >= 100 ? 'var(--ok)' : totalPct >= 60 ? 'var(--warn)' : 'var(--over)';
 
   document.getElementById('qtybd-month-label').textContent = MONTHS[mi] + ' 2026  —  QTY Breakdown';
   document.getElementById('qtybd-subtitle').textContent    = 'Actual vs Budget per Produk';
@@ -941,7 +941,7 @@ function renderQtyBreakdown() {
     </div>
     <div style="flex:1;padding:14px 20px;">
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Achievement</div>
-      <div style="font-family:Barlow Condensed,sans-serif;font-size:24px;font-weight:800;color:${hasActual?achColor:'#fb923c'};">${totalBudget > 0 ? totalPct.toFixed(1)+'%' : '—'}</div>
+      <div style="font-family:Barlow Condensed,sans-serif;font-size:24px;font-weight:800;color:${hasActual?achColor:'var(--over)'};">${totalBudget > 0 ? totalPct.toFixed(1)+'%' : '—'}</div>
     </div>`;
 
   const body = document.getElementById('qtybd-body');
@@ -955,15 +955,15 @@ function renderQtyBreakdown() {
     const catAct   = actualMT[cat.key] || 0;
     const gap      = catAct - catBgt;
     const gapStr   = (gap >= 0 ? '+' : '') + Math.round(gap).toLocaleString('id-ID') + ' MT';
-    const gapColor = gap >= 0 ? '#4ade80' : '#fb923c';
-    const rowColor = catAct > 0 && catAct >= catBgt ? '#4ade80' : catAct > 0 ? '#fb923c' : '#fb923c';
+    const gapColor = gap >= 0 ? 'var(--ok)' : 'var(--over)';
+    const rowColor = catAct > 0 && catAct >= catBgt ? 'var(--ok)' : catAct > 0 ? 'var(--over)' : 'var(--border2)';
     const bgtBarW  = (catBgt / maxBar * 100).toFixed(1);
     const actBarW  = (catAct / maxBar * 100).toFixed(1);
     const pctVal   = catBgt > 0 ? (catAct / catBgt * 100).toFixed(1) + '%' : catAct > 0 ? '∞%' : '—';
-    const pctColor = catAct >= catBgt && catBgt > 0 ? '#4ade80' : '#fb923c';
+    const pctColor = catAct >= catBgt && catBgt > 0 ? 'var(--ok)' : 'var(--over)';
     const pctText  = catBgt > 0 ? `<span style="font-weight:700;color:${pctColor};">${pctVal}</span> dari budget`
                    : catAct > 0 ? `Tidak ada budget · actual: ${fmtMT(catAct)}`
-                   : `<span style="color:#fb923c;font-weight:700;">0%</span> dari budget ${fmtMT(catBgt)}`;
+                   : `<span style="color:var(--over);font-weight:700;">0%</span> dari budget ${fmtMT(catBgt)}`;
 
     html += `
     <div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
