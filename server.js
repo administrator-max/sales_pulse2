@@ -9,6 +9,62 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// ── Anti-crawl / Anti-indexing middleware ─────────────────────────────────────
+app.use((req, res, next) => {
+  // Block semua crawler dan spider
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex, nocache');
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
+
+// Serve robots.txt yang melarang semua crawler
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send([
+    'User-agent: *',
+    'Disallow: /',
+    '',
+    'User-agent: Googlebot',
+    'Disallow: /',
+    '',
+    'User-agent: Bingbot',
+    'Disallow: /',
+    '',
+    'User-agent: GPTBot',
+    'Disallow: /',
+    '',
+    'User-agent: CCBot',
+    'Disallow: /',
+    '',
+    'User-agent: anthropic-ai',
+    'Disallow: /',
+    '',
+    'User-agent: Claude-Web',
+    'Disallow: /',
+  ].join('\n'));
+});
+
+// Deny AI crawlers by checking User-Agent
+app.use((req, res, next) => {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  const blockedBots = [
+    'googlebot', 'bingbot', 'slurp', 'duckduckbot', 'baiduspider',
+    'yandexbot', 'sogou', 'exabot', 'facebot', 'ia_archiver',
+    'semrushbot', 'ahrefsbot', 'mj12bot', 'dotbot', 'rogerbot',
+    'screaming frog', 'gptbot', 'ccbot', 'anthropic-ai', 'claude-web',
+    'bytespider', 'petalbot', 'applebot', 'archive.org_bot',
+  ];
+  if (blockedBots.some(bot => ua.includes(bot))) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = new Pool({

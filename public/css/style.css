@@ -325,7 +325,7 @@ footer { padding: 20px; font-size: 11px; color: var(--muted); text-align: center
 /* ── Upload Excel Modal ────────────────────────────────────── */
 .upload-dz-hover {
   border-color: #1e5aa8 !important;
-  background: #e8f0fe !important;
+  background: #dbeafe !important;
 }
 .upload-dz-hover svg { opacity: 1 !important; }
 

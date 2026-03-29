@@ -163,9 +163,9 @@ function renderUploadPreview(errors) {
   const summaryBar = document.getElementById('upload-summary-bar');
   if (totalGroups > 1 && summaryBar) {
     summaryBar.innerHTML = `
-      <div style="width:100%;padding:10px 14px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ok);">Grand Total · ${totalFiles} file · ${totalGroups} projects</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--ok);">${fmtM(grandTotalM)}</div>
+      <div style="width:100%;padding:10px 14px;background:#eaf3ff;border:1px solid var(--border);border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);">Grand Total · ${totalFiles} file · ${totalGroups} projects</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--actual);">${fmtM(grandTotalM)}</div>
       </div>`;
   } else if (summaryBar) {
     summaryBar.innerHTML = '';
@@ -222,7 +222,7 @@ function renderUploadPreview(errors) {
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:700;color:#fff;">${h.psNumber}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);">${h.psNumber}</div>
               <div style="font-size:10px;color:var(--muted2);margin-top:2px;">${h.subsidiary || h.customerName || ''}</div>
               ${fxStr}
             </div>
@@ -256,10 +256,10 @@ function renderUploadPreview(errors) {
             <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${accentColor};margin-bottom:4px;">
               ${isMulti ? `🔗 INTERCOMPANY &middot; ${files.length} Subsidiaries` : '📄 Single PS'}
             </div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:#fff;line-height:1.2;">${projectName}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text);line-height:1.2;">${projectName}</div>
             <div style="font-size:11px;color:var(--muted2);margin-top:4px;">
-              PO Date: <strong style="color:var(--plan)">${poDate}</strong>
-              &rarr; <strong style="color:#fff">${monthLabel}</strong>
+              PO Date: <strong style="color:var(--actual)">${poDate}</strong>
+              &rarr; <strong style="color:var(--actual)">${monthLabel}</strong>
               &nbsp;&middot;&nbsp; ${Math.round(totalWeightKg/1000).toLocaleString('id-ID')} MT
               &nbsp;&middot;&nbsp; ${files.reduce((s,f)=>s+f.items.length,0)} item
             </div>

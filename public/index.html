@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+  <!-- Anti-crawl / SEO block -->
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <meta name="googlebot" content="noindex, nofollow">
+  <meta name="bingbot" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sales Pulse 2026 — Budget vs Actual</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -508,13 +512,13 @@
            ondragleave="this.classList.remove('upload-dz-hover')"
            ondrop="handleUploadDrop(event)"
            onclick="document.getElementById('upload-file-input').click()"
-           style="border:2px dashed rgba(34,211,238,0.35);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px;background:rgba(34,211,238,0.03);">
+           style="border:2px dashed rgba(30,90,168,0.3);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px;background:#f0f7ff;">
         <input type="file" id="upload-file-input" accept=".xls,.xlsx,.csv" multiple style="display:none" onchange="handleUploadFileSelect(event)">
         <div style="margin-bottom:12px;">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5" style="opacity:0.7"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1e5aa8" stroke-width="1.5" style="opacity:0.8"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:6px;">Drag & Drop satu atau beberapa file</div>
-        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; <span style="color:#22d3ee;">Multi-file OK</span> &nbsp;·&nbsp; Format: <span style="color:#22d3ee;">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">Drag & Drop satu atau beberapa file</div>
+        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; <span style="color:var(--actual);font-weight:600;">Multi-file OK</span> &nbsp;·&nbsp; Format: <span style="color:var(--actual);">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
       </div>
 
       <!-- ── STEP 2: Preview (hidden until file parsed) ── -->
