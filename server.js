@@ -65,7 +65,21 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Page routes (BEFORE static so / is not intercepted by index.html) ─────────
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'executive.html'));
+});
+app.get('/executive', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'executive.html'));
+});
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Executive Summary page ────────────────────────────────────────────────────
+
 
 const pool = new Pool({
   ssl: { rejectUnauthorized: false }

@@ -485,4 +485,28 @@ function parseProjectSheetData(lines) {
 }
 
 // ── BOOTSTRAP ──
+// Cek sessionStorage dari Executive Summary — sync filter jika ada
+(function() {
+  const sy = sessionStorage.getItem('dash_year');
+  const sm = sessionStorage.getItem('dash_month');
+  if (sy) {
+    FILTER_YEAR = parseInt(sy);
+    const lbl = document.getElementById('filter-year-label');
+    if (lbl) lbl.textContent = FILTER_YEAR;
+  }
+  if (sm !== null) {
+    const m = parseInt(sm);
+    if (m !== -1) {
+      FILTER_MONTH = m;
+      // Update dropdown button label
+      const btnLbl = document.getElementById('filter-month-label');
+      if (btnLbl && typeof _MF !== 'undefined') btnLbl.textContent = _MF[m];
+      // Update dropdown active state
+      document.querySelectorAll('.month-dd-item').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.month) === m);
+      });
+      if (typeof _updateFilterBadge === 'function') _updateFilterBadge();
+    }
+  }
+})();
 initApp();
