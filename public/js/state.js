@@ -12,27 +12,37 @@ const QTY_PROD_LABELS = [
   { key:'ppgl', label:'PPGL' }
 ];
 
+// Brand palette only: dark blue, light blue, dark green, light green, dark text, gray
 const PROD_CATS = [
-  { key:'sheetPile',  label:'Sheet Pile', color:'#2196f3', rgba:'rgba(33,150,243,0.85)',  match: n => n.includes('mlion')||n.includes('sheet pile') },
-  { key:'weldedPipe', label:'Pipe',       color:'#43a047', rgba:'rgba(67,160,71,0.85)',   match: n => n.includes('youfa')||n.includes('welded')||(n.includes('pipe')&&!n.includes('erw'))||n.includes('seamless') },
-  { key:'erwPipe',    label:'ERW Pipe',   color:'#0288d1', rgba:'rgba(2,136,209,0.85)',   match: n => n.includes('erw') },
-  { key:'gl',         label:'GL',         color:'#00897b', rgba:'rgba(0,137,123,0.85)',   match: n => n.includes('gl')||n.includes('galvalume') },
-  { key:'gi',         label:'GI',         color:'#66bb6a', rgba:'rgba(102,187,106,0.85)', match: n => n.includes('gi ')||n.includes('galvanized')||n.includes(' gi') },
-  { key:'ppgl',       label:'PPGL',       color:'#1565c0', rgba:'rgba(21,101,192,0.85)',  match: n => n.includes('sssc')||n.includes('ppgl')||n.includes('coil') },
+  { key:'sheetPile',  label:'Sheet Pile', color:'#373896', rgba:'rgba(55,56,150,0.90)',  match: n => n.includes('mlion')||n.includes('sheet pile') },
+  { key:'weldedPipe', label:'Pipe',       color:'#2077BD', rgba:'rgba(32,119,189,0.90)', match: n => n.includes('youfa')||n.includes('welded')||(n.includes('pipe')&&!n.includes('erw'))||n.includes('seamless') },
+  { key:'erwPipe',    label:'ERW Pipe',   color:'#0A6A36', rgba:'rgba(10,106,54,0.90)',  match: n => n.includes('erw') },
+  { key:'gl',         label:'GL',         color:'#2AB675', rgba:'rgba(42,182,117,0.90)', match: n => n.includes('gl')||n.includes('galvalume') },
+  { key:'gi',         label:'GI',         color:'#6D6E71', rgba:'rgba(109,110,113,0.90)',match: n => n.includes('gi ')||n.includes('galvanized')||n.includes(' gi') },
+  { key:'ppgl',       label:'PPGL',       color:'#231F20', rgba:'rgba(35,31,32,0.90)',   match: n => n.includes('sssc')||n.includes('ppgl')||n.includes('coil') },
 ];
 
 // Dynamic State (Fetched exclusively from DB)
 let BUDGET = {
   margin: Array(12).fill(0),
   revenue: Array(12).fill(0),
-  qty: { sheetPile: Array(12).fill(0), weldedPipe: Array(12).fill(0), erwPipe: Array(12).fill(0), gl: Array(12).fill(0), gi: Array(12).fill(0), ppgl: Array(12).fill(0) }
+  qty: { sheetPile: Array(12).fill(0), weldedPipe: Array(12).fill(0), erwPipe: Array(12).fill(0), gl: Array(12).fill(0), gi: Array(12).fill(0), ppgl: Array(12).fill(0) },
+  products: {}   // canonical_product → { volume:[12], revenue:[12], margin:[12] }
 };
 let ACTUAL = { margin: Array(12).fill(null), plan: Array(12).fill(null), revenue: Array(12).fill(null), notes: Array(12).fill('') };
+let ACTUAL_PRODUCTS = {};   // canonical_product → { volume:[12], revenue:[12], margin:[12] }
 let PLAN_REVISIONS = Array.from({length:12}, ()=>[]);
-let PS_CHAINS = {}; 
+let PS_CHAINS = {};
 let QTY_DATA = {};
 let selectedMonth = NOW_MONTH <= 11 ? NOW_MONTH : 11;
 let SP_ACTIVE_REV = Array(12).fill(0);
+
+// Chart filter: '__all__' (aggregate) atau canonical product name
+let CHART_PRODUCT = '__all__';
+function setChartProduct(p) {
+  CHART_PRODUCT = p;
+  if (typeof buildChart === 'function') buildChart();
+}
 
 // ── Dashboard filter state ───────────────────────────────────────────────────
 let FILTER_YEAR  = new Date().getFullYear();
@@ -42,11 +52,17 @@ const _MF = ['January','February','March','April','May','June','July','August','
 
 function shiftFilterYear(delta) {
   FILTER_YEAR += delta;
-  const lbl = document.getElementById('filter-year-label');
-  if (lbl) lbl.textContent = FILTER_YEAR;
+  _syncYearLabels();
   _updateFilterBadge();
   // Re-fetch data dari server dengan tahun baru
   initApp();
+}
+
+function _syncYearLabels() {
+  ['filter-year-label', 'h-title-year', 'footer-year'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = FILTER_YEAR;
+  });
 }
 
 function setFilterMonth(month) {
@@ -95,10 +111,10 @@ function _updateFilterBadge() {
   if (badge)    { badge.style.display = isFiltered ? 'inline-block' : 'none'; badge.textContent = labelText; }
   if (resetBtn) { resetBtn.style.display = isFiltered ? 'block' : 'none'; }
   if (tableTag) { tableTag.textContent = isFiltered ? (_MF[FILTER_MONTH] + ' ' + FILTER_YEAR) : ('All ' + FILTER_YEAR); }
-  // Highlight the button when filtered
+  // Highlight the button when filtered (header is dark blue, so use white tint)
   if (filterBtn) {
-    filterBtn.style.borderColor = isFiltered ? 'rgba(34,211,238,0.5)' : 'var(--border2)';
-    filterBtn.style.color       = isFiltered ? '#22d3ee' : 'var(--text)';
+    filterBtn.style.borderColor = isFiltered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)';
+    filterBtn.style.background  = isFiltered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.10)';
   }
 }
 
@@ -114,21 +130,35 @@ function closeProductSummaryModal() {
 
 // ── INIT & FETCH FROM DATABASE ──
 async function initApp() {
+  _syncYearLabels();
   try {
     const res = await fetch('/api/data?year=' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : new Date().getFullYear()));
     if (res.ok) {
       const data = await res.json();
       BUDGET = data.BUDGET || BUDGET;
       ACTUAL = data.ACTUAL || ACTUAL;
+      ACTUAL_PRODUCTS = data.ACTUAL_PRODUCTS || {};
       PLAN_REVISIONS = data.PLAN_REVISIONS || PLAN_REVISIONS;
       PS_CHAINS = data.PS_CHAINS || {};
       QTY_DATA = data.QTY_DATA || {};
-      
+
       // Ensure month keys exist in dynamic dictionaries
       MONTH_KEYS.forEach(m => {
          if (!PS_CHAINS[m]) PS_CHAINS[m] = [];
          if (!QTY_DATA[m]) QTY_DATA[m] = [];
       });
+
+      // Populate chart product dropdown — union of products in BUDGET + ACTUAL
+      const dd = document.getElementById('chart-product-filter');
+      if (dd) {
+        const products = [...new Set([
+          ...Object.keys(BUDGET.products || {}),
+          ...Object.keys(ACTUAL_PRODUCTS || {}),
+        ])].sort();
+        dd.innerHTML = '<option value="__all__">Semua Produk (aggregate)</option>'
+          + products.map(p => `<option value="${p}">${p}</option>`).join('');
+        dd.value = CHART_PRODUCT;
+      }
 
       refreshAll();
     }

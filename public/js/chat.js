@@ -80,7 +80,7 @@ function chatFallback(q, d) {
   }
 
   if (foundProject) {
-      return `<strong>${foundProject.name}</strong> — ${foundProjectMonth} 2026:<br>
+      return `<strong>${foundProject.name}</strong> — ${foundProjectMonth} ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:<br>
       Revenue: <strong>IDR ${fmt(foundProject.revenue, 3)} M</strong><br>
       Margin: <strong>IDR ${fmt(foundProject.margin, 3)} M (${foundProject.pct}%)</strong><br>
       Customer: ${foundProject.customer}<br>
@@ -104,7 +104,7 @@ function chatFallback(q, d) {
 
   // 3. YTD/Total Questions
   if (has('ytd', 'total', 'keseluruhan') && (has('margin', 'revenue', 'volume', 'qty'))) {
-      return `<strong>YTD 2026:</strong><br>
+      return `<strong>YTD ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:</strong><br>
       Actual Margin: <strong>${fmt(d.ytdActual)} MIDR</strong><br>
       Budget Margin: <strong>${fmt(d.ytdBudget)} MIDR</strong><br>
       Achievement: <strong>${d.ytdPct}%</strong><br>
@@ -135,7 +135,7 @@ function chatFallback(q, d) {
       let pList = chains.map(c => `• ${c.name}: ${fmt(c.margin)} M (${c.pct}%)`).join('<br>');
       if (!pList) pList = 'Belum ada data proyek / PS import.';
 
-      return `<strong>${MONTHS[mIdx]} 2026:</strong><br>
+      return `<strong>${MONTHS[mIdx]} ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:</strong><br>
       Margin: <strong>${m != null ? fmt(m) + ' MIDR' : 'Belum ada'}</strong><br>
       Budget: <strong>${fmt(b)} MIDR</strong><br>
       Achievement: <strong>${ach}%</strong><br>

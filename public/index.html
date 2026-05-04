@@ -8,70 +8,55 @@
   <meta name="bingbot" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sales Pulse 2026 — Budget vs Actual</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/css/style.css">
-<style>
-  /* Custom color variables for SALES and PULSE */
-  :root {
-    --h-sales-pink: #f46087;
-    --h-pulse-orange: #ff8f3f;
-  }
-</style>
 </head>
 <body>
 <div class="page">
 
 <header>
-  <div class="h-left-group" style="display: flex; align-items: center; gap: 20px;">
-    <img src="/assets/logo.jpg" class="h-logo-img" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--s3); flex-shrink: 0;" alt="Logo">
-    
-    <div style="display: flex; flex-direction: column;">
-      <div class="h-brand">
-        <div style="display:flex;flex-direction:column;justify-content:center;gap:0px;">
-          <div class="h-title"><span style="color:#ffffff">SALES</span> <span style="color:#a8d8ff">PULSE</span></div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.75);letter-spacing:2px;text-transform:uppercase;margin-top:4px;font-weight:500;">Budget vs Actual · 2026</div>
-        </div>
-      </div>
+  <div class="h-left-group" style="display:flex;align-items:center;gap:16px;">
+    <img src="/assets/logo.jpg" class="h-logo-img" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="Logo">
+    <div style="display:flex;flex-direction:column;">
+      <div class="h-title">Sales Pulse <span id="h-title-year">2026</span></div>
       <div class="h-sub">Budget vs Actual · Monthly · GP + ATL Consolidated</div>
     </div>
   </div>
 
   <div class="h-actions">
-    <a href="/" class="btn btn-ghost" style="border-color:rgba(255,255,255,0.5);color:#ffffff;text-decoration:none;">
+    <a href="/" class="btn btn-ghost" style="text-decoration:none;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="4"/><rect x="14" y="14" width="7" height="4"/><rect x="3" y="20" width="18" height="1"/></svg>
       Executive Summary
     </a>
-    <button class="btn btn-ghost" onclick="openBudgetModal()" style="border-color:rgba(255,255,255,0.5);color:#ffffff;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-      Edit Budget
+    <button class="btn btn-ghost" onclick="openBudgetImportModal()" title="Import budget Excel (Volume / Revenue / Margin per produk)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+      Import Budget
     </button>
-    <button class="btn btn-ghost" onclick="openUploadModal()" style="background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.6); color:#ffffff;">
+    <button class="btn btn-ghost" onclick="openUploadModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       Import Excel
     </button>
 
     <!-- Filter: Year + Month dropdown -->
-    <div style="display:flex;align-items:center;gap:6px;margin-left:8px;border-left:1px solid var(--border2);padding-left:12px;">
+    <div class="header-filter-group">
 
       <!-- Year stepper -->
-      <div style="display:flex;align-items:center;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:7px;overflow:hidden;">
-        <button onclick="shiftFilterYear(-1)" style="width:26px;height:30px;border:none;background:transparent;color:rgba(255,255,255,0.6);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:color 0.15s;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">‹</button>
-        <span id="filter-year-label" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:#ffffff;min-width:36px;text-align:center;">2026</span>
-        <button onclick="shiftFilterYear(1)"  style="width:26px;height:30px;border:none;background:transparent;color:rgba(255,255,255,0.6);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:color 0.15s;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">›</button>
+      <div class="header-stepper">
+        <button onclick="shiftFilterYear(-1)" class="header-stepper-btn" aria-label="Previous year">‹</button>
+        <span id="filter-year-label" class="header-stepper-val">2026</span>
+        <button onclick="shiftFilterYear(1)"  class="header-stepper-btn" aria-label="Next year">›</button>
       </div>
 
       <!-- Month dropdown -->
       <div style="position:relative;">
-        <button id="filter-month-btn" onclick="toggleMonthDropdown()"
-          style="display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:7px;color:#ffffff;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.3px;transition:all 0.15s;min-width:100px;">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <button id="filter-month-btn" onclick="toggleMonthDropdown()" class="header-month-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           <span id="filter-month-label">All Months</span>
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:auto;"><polyline points="6 9 12 15 18 9"/></svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div id="filter-month-dropdown" style="display:none;position:absolute;top:34px;right:0;z-index:9999;background:var(--s1);border:1px solid var(--border2);border-radius:10px;box-shadow:0 16px 48px rgba(0,0,0,0.6);padding:6px;min-width:160px;">
+        <div id="filter-month-dropdown" style="display:none;position:absolute;top:38px;right:0;z-index:9999;background:var(--s1);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(35,31,32,0.12);padding:6px;min-width:200px;">
           <button class="month-dd-item active" data-month="-1" onclick="setFilterMonth(-1)">All Months</button>
           <div style="height:1px;background:var(--border);margin:4px 0;"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;">
@@ -92,18 +77,17 @@
       </div>
 
       <!-- Active badge + reset -->
-      <div id="filter-active-badge" style="display:none;font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,0.2);color:#ffffff;border:1px solid rgba(255,255,255,0.5);font-weight:700;white-space:nowrap;letter-spacing:0.3px;"></div>
-      <button id="filter-reset-btn" onclick="setFilterMonth(-1)" style="display:none;height:30px;padding:0 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.4);color:#ffffff;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">✕</button>
+      <div id="filter-active-badge" class="header-filter-badge" style="display:none;"></div>
+      <button id="filter-reset-btn" onclick="setFilterMonth(-1)" class="header-filter-reset" style="display:none;" aria-label="Clear filter">✕</button>
     </div>
-    </div>
+  </div>
 </header>
 
 <div class="presence-bar">
   <div class="presence-dot"></div>
-  <span class="presence-label">Status:</span>
-  <span style="font-size:11px;color:var(--actual);font-weight:600">Database Connected &bull; PostgREST Ready</span>
-  <span style="font-size:11px;color:var(--muted2);margin-left:4px"></span>
-  <div style="margin-left:auto;font-size:10px;color:var(--muted)">FX: Live Rates Applied</div>
+  <span class="presence-label">Status</span>
+  <span style="font-size:11px;color:var(--text);font-weight:700">Database Connected &bull; PostgREST Ready</span>
+  <div style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400;">FX · Live Rates Applied</div>
 </div>
 
 <div class="kpi-strip">
@@ -136,36 +120,36 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;" id="analytics-grid">
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px;" id="analytics-grid">
   <div class="card analytics-mini" id="card-qty" onclick="openAnalyticsModal('qty')" style="cursor:pointer;">
-    <div class="card-head" style="padding:12px 16px 8px;">
-      <div class="card-title" style="font-size:10px;"><span class="dot" style="background:#22d3ee"></span>Qty vs Budget</div>
+    <div class="card-head" style="padding:12px 16px;">
+      <div class="card-title"><span class="dot" style="background:var(--brand-blue)"></span>Qty vs Budget</div>
     </div>
-    <div style="padding:10px 16px 16px;" id="mini-qty"></div>
+    <div style="padding:14px 16px 16px;" id="mini-qty"></div>
   </div>
-  
+
   <div class="card analytics-mini" id="card-prod" style="cursor:pointer;">
-    <div class="card-head" style="padding:12px 16px 8px;display:flex;justify-content:space-between;align-items:center;">
-      <div class="card-title" style="font-size:10px;pointer-events:none;"><span class="dot" style="background:#a78bfa"></span>Per Product & Margin</div>
-      <div style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:2px;pointer-events:auto;" onclick="event.stopPropagation()">
-        <button id="prod-tab-margin" class="qty-tab-btn active" onclick="switchProdTab('margin')" style="font-size:10px;padding:2px 8px;">Margin</button>
-        <button id="prod-tab-qty"    class="qty-tab-btn"        onclick="switchProdTab('qty')"    style="font-size:10px;padding:2px 8px;">Qty</button>
+    <div class="card-head" style="padding:12px 16px;">
+      <div class="card-title" style="pointer-events:none;"><span class="dot" style="background:var(--brand-dark)"></span>Per Product · Margin</div>
+      <div style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:2px;pointer-events:auto;" onclick="event.stopPropagation()">
+        <button id="prod-tab-margin" class="qty-tab-btn active" onclick="switchProdTab('margin')" style="font-size:11px;padding:3px 9px;">Margin</button>
+        <button id="prod-tab-qty"    class="qty-tab-btn"        onclick="switchProdTab('qty')"    style="font-size:11px;padding:3px 9px;">Qty</button>
       </div>
     </div>
-    <div style="padding:10px 16px 16px;" id="mini-prod-margin" onclick="openAnalyticsModal('prod-margin')"></div>
-    <div style="padding:10px 16px 16px;display:none;" id="mini-prod-qty" onclick="openAnalyticsModal('prod-qty')"></div>
+    <div style="padding:14px 16px 16px;" id="mini-prod-margin" onclick="openAnalyticsModal('prod-margin')"></div>
+    <div style="padding:14px 16px 16px;display:none;" id="mini-prod-qty" onclick="openAnalyticsModal('prod-qty')"></div>
   </div>
-  
+
   <div class="card analytics-mini" id="card-cust" style="cursor:pointer;">
-    <div class="card-head" style="padding:12px 16px 8px;display:flex;justify-content:space-between;align-items:center;">
-      <div class="card-title" style="font-size:10px;pointer-events:none;"><span class="dot" style="background:#4ade80"></span>Top Customer</div>
-      <div style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:2px;pointer-events:auto;" onclick="event.stopPropagation()">
-        <button id="cust-tab-margin" class="qty-tab-btn active" onclick="switchCustTab('margin')" style="font-size:10px;padding:2px 8px;">Margin</button>
-        <button id="cust-tab-qty"    class="qty-tab-btn"        onclick="switchCustTab('qty')"    style="font-size:10px;padding:2px 8px;">Qty</button>
+    <div class="card-head" style="padding:12px 16px;">
+      <div class="card-title" style="pointer-events:none;"><span class="dot" style="background:var(--brand-green)"></span>Top Customer</div>
+      <div style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:2px;pointer-events:auto;" onclick="event.stopPropagation()">
+        <button id="cust-tab-margin" class="qty-tab-btn active" onclick="switchCustTab('margin')" style="font-size:11px;padding:3px 9px;">Margin</button>
+        <button id="cust-tab-qty"    class="qty-tab-btn"        onclick="switchCustTab('qty')"    style="font-size:11px;padding:3px 9px;">Qty</button>
       </div>
     </div>
-    <div style="padding:10px 16px 16px;" id="mini-cust-margin" onclick="openAnalyticsModal('cust-margin')" style="cursor:pointer;"></div>
-    <div style="padding:10px 16px 16px;display:none;" id="mini-cust-qty" onclick="openAnalyticsModal('cust-qty')" style="cursor:pointer;"></div>
+    <div style="padding:14px 16px 16px;" id="mini-cust-margin" onclick="openAnalyticsModal('cust-margin')" style="cursor:pointer;"></div>
+    <div style="padding:14px 16px 16px;display:none;" id="mini-cust-qty" onclick="openAnalyticsModal('cust-qty')" style="cursor:pointer;"></div>
   </div>
 </div>
 
@@ -177,20 +161,24 @@
   <!-- Chart: full width -->
   <div class="card">
     <div class="card-head">
-      <div class="card-title"><span class="dot" style="background:#22d3ee"></span>QTY Actual vs Budget (MT) <span style="font-size:10px;color:var(--muted);font-weight:400;font-family:'Barlow',sans-serif;margin-left:6px;">· klik bar untuk detail produk</span></div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2)">
-          <span style="width:12px;height:10px;border:1.5px solid rgba(255,255,255,0.30);display:inline-block;border-radius:2px;background:transparent;"></span>Budget
+      <div class="card-title"><span class="dot" style="background:var(--brand-blue)"></span>QTY Actual vs Budget (MT) <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;text-transform:none;letter-spacing:0;">· klik bar untuk detail produk</span></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+        <!-- Product filter dropdown -->
+        <select id="chart-product-filter" onchange="setChartProduct(this.value)" class="chart-filter-select">
+          <option value="__all__">Semua Produk (aggregate)</option>
+        </select>
+        <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-weight:700;">
+          <span style="width:12px;height:10px;border:1.5px solid var(--border2);display:inline-block;border-radius:3px;background:transparent;"></span>Budget
         </span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#4ade80">
-          <span style="width:12px;height:8px;background:#4ade80;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual ≥ Budget
+        <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--brand-green-dark);font-weight:700;">
+          <span style="width:12px;height:8px;background:var(--brand-green);display:inline-block;border-radius:3px;"></span>Actual ≥ Budget
         </span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#fb923c">
-          <span style="width:12px;height:8px;background:#fb923c;display:inline-block;border-radius:2px;opacity:0.9"></span>Actual &lt; Budget
+        <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--brand-blue);font-weight:700;">
+          <span style="width:12px;height:8px;background:var(--brand-blue);display:inline-block;border-radius:3px;"></span>Actual &lt; Budget
         </span>
       </div>
     </div>
-    <div class="card-body" style="padding:20px 24px 24px;">
+    <div class="card-body" style="padding:18px 22px 22px;">
       <canvas id="mainChart"></canvas>
     </div>
   </div>
@@ -201,10 +189,10 @@
     <!-- Monthly Breakdown -->
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="dot" style="background:var(--muted2)"></span>Monthly Breakdown</div>
-        <div class="card-tag" style="cursor:pointer;" onclick="openProductSummaryModal()">📦 Product Summary</div>
+        <div class="card-title"><span class="dot" style="background:var(--brand-dark)"></span>Monthly Breakdown</div>
+        <div class="card-tag" style="cursor:pointer;" onclick="openProductSummaryModal()">Product Summary</div>
       </div>
-      <div class="card-body" style="padding:8px 20px 20px;">
+      <div class="card-body" style="padding:8px 18px 18px;">
         <table class="month-table">
           <thead>
             <tr>
@@ -225,10 +213,10 @@
     <!-- Achievement Bar -->
     <div class="card">
       <div class="card-head">
-        <div class="card-title" style="font-size:13px;"><span class="dot" style="background:var(--warn)"></span>Achievement Bar</div>
+        <div class="card-title"><span class="dot" style="background:var(--brand-green)"></span>Achievement</div>
         <div class="card-tag">vs Budget</div>
       </div>
-      <div class="card-body" style="padding:16px 20px;">
+      <div class="card-body" style="padding:16px 18px;">
         <div id="waterfall"></div>
       </div>
     </div>
@@ -237,13 +225,13 @@
 </div>
 
 <!-- ── Product Summary Modal ── -->
-<div id="product-summary-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(10,25,60,0.5);backdrop-filter:blur(4px);align-items:center;justify-content:center;" onclick="if(event.target===this)closeProductSummaryModal()">
-  <div style="background:var(--s1);border:1px solid var(--border2);border-radius:14px;width:480px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,0.6);">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px 14px;border-bottom:1px solid var(--border2);">
-      <div class="card-title"><span class="dot" style="background:#f59e0b"></span>Product Summary</div>
+<div id="product-summary-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(35,31,32,0.45);align-items:center;justify-content:center;" onclick="if(event.target===this)closeProductSummaryModal()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:480px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 4px 16px rgba(35,31,32,0.12);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div class="card-title"><span class="dot" style="background:var(--brand-blue)"></span>Product Summary</div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <div id="qty-tabs-wrap" style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;overflow:hidden;padding:2px;"></div>
-        <button onclick="closeProductSummaryModal()" style="width:30px;height:30px;border-radius:6px;background:var(--s3);border:1px solid var(--border2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <div id="qty-tabs-wrap" style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border);border-radius:6px;overflow:hidden;padding:2px;"></div>
+        <button onclick="closeProductSummaryModal()" class="modal-close">✕</button>
       </div>
     </div>
     <div class="card-body" style="padding:0;overflow-y:auto;flex:1;" id="qty-panel"></div>
@@ -251,7 +239,7 @@
 </div>
 
 <footer>
-  <span>Sales Pulse 2026 · GP+ATL Consolidated</span>
+  <span>Sales Pulse <span id="footer-year">2026</span> · GP+ATL Consolidated</span>
   <span id="footer-updated">Last updated: —</span>
 </footer>
 
@@ -260,20 +248,20 @@
   <span id="toast-msg">Saved</span>
 </div>
 
-<div id="qty-breakdown-overlay" style="display:none;pointer-events:none;position:fixed;inset:0;z-index:600;background:rgba(10,25,60,0.55);backdrop-filter:blur(6px);align-items:center;justify-content:center;" onclick="if(event.target===this)closeQtyBreakdown()">
-  <div style="background:var(--s1);border:1px solid var(--border2);border-radius:16px;width:540px;max-height:82vh;overflow-y:auto;box-shadow:0 28px 72px rgba(0,0,0,0.7);position:relative;">
-    <div id="qtybd-header" style="padding:18px 20px 14px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--s1);z-index:1;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;">
+<div id="qty-breakdown-overlay" style="display:none;pointer-events:none;position:fixed;inset:0;z-index:600;background:rgba(35,31,32,0.45);align-items:center;justify-content:center;" onclick="if(event.target===this)closeQtyBreakdown()">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:540px;max-height:82vh;overflow-y:auto;box-shadow:0 4px 16px rgba(35,31,32,0.12);position:relative;">
+    <div id="qtybd-header" style="padding:18px 22px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1);z-index:1;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <div id="qtybd-month-label" style="font-family:Barlow Condensed,sans-serif;font-size:22px;font-weight:800;color:#fff;letter-spacing:0.5px;line-height:1.1;"></div>
-        <div id="qtybd-subtitle" style="font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:0.5px;text-transform:uppercase;"></div>
+        <div id="qtybd-month-label" style="font-family:inherit;font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.2px;line-height:1.2;"></div>
+        <div id="qtybd-subtitle" style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:1px;text-transform:uppercase;font-weight:700;"></div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button id="qtybd-prev" onclick="shiftQtyMonth(-1)" style="background:var(--s3);border:1px solid var(--border2);color:var(--muted2);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;">‹</button>
-        <button id="qtybd-next" onclick="shiftQtyMonth(1)"  style="background:var(--s3);border:1px solid var(--border2);color:var(--muted2);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;">›</button>
-        <button onclick="closeQtyBreakdown()" style="background:var(--s3);border:1px solid var(--border2);color:var(--muted2);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:18px;line-height:1;">&times;</button>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button id="qtybd-prev" onclick="shiftQtyMonth(-1)" style="background:var(--s3);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:700;">‹</button>
+        <button id="qtybd-next" onclick="shiftQtyMonth(1)"  style="background:var(--s3);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:700;">›</button>
+        <button onclick="closeQtyBreakdown()" class="modal-close">&times;</button>
       </div>
     </div>
-    <div id="qtybd-summary" style="display:flex;gap:0;border-bottom:1px solid var(--border2);"></div>
+    <div id="qtybd-summary" style="display:flex;gap:0;border-bottom:1px solid var(--border);"></div>
     <div id="qtybd-body" style="padding:8px 0 12px;"></div>
   </div>
 </div>
@@ -282,34 +270,34 @@
   <div class="modal">
     <div class="modal-header">
       <div style="display:flex;align-items:center;gap:12px;">
-        <div class="modal-month" style="color:var(--text)">Edit Budget <span style="color:var(--actual)">Targets</span></div>
+        <div class="modal-month">Edit Budget <span>Targets</span></div>
         <!-- Year selector in budget modal -->
-        <div style="display:flex;align-items:center;background:var(--s3);border:1px solid var(--border2);border-radius:7px;overflow:hidden;">
-          <button onclick="shiftBudgetYear(-1)" style="width:26px;height:26px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">‹</button>
-          <span id="budget-year-label" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--plan);min-width:38px;text-align:center;">2026</span>
-          <button onclick="shiftBudgetYear(1)"  style="width:26px;height:26px;border:none;background:transparent;color:var(--muted2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">›</button>
+        <div style="display:flex;align-items:center;background:var(--s3);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button onclick="shiftBudgetYear(-1)" style="width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;">‹</button>
+          <span id="budget-year-label" style="font-family:inherit;font-size:13px;font-weight:700;color:var(--brand-dark);min-width:40px;text-align:center;">2026</span>
+          <button onclick="shiftBudgetYear(1)"  style="width:28px;height:28px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;">›</button>
         </div>
       </div>
       <button class="modal-close" onclick="closeBudgetModal(null, true)">✕</button>
     </div>
     <div class="modal-body">
-      <div style="display:flex;align-items:center;gap:0;margin-bottom:20px;background:var(--s3);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:18px;background:var(--s2);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
         <div id="budget-tabs-wrap" style="display:flex;flex:1;overflow-x:auto;scrollbar-width:none;"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
         <div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Target Margin (M IDR)</div>
-          <input id="bgt-margin" type="number" step="0.01" style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:7px;padding:10px;color:var(--text);font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;outline:none;">
+          <div class="form-label">Target Margin (M IDR)</div>
+          <input id="bgt-margin" type="number" step="0.01" class="form-input form-input-num">
         </div>
         <div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Target Revenue (M IDR)</div>
-          <input id="bgt-revenue" type="number" step="0.01" style="width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:7px;padding:10px;color:var(--text);font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;outline:none;">
+          <div class="form-label">Target Revenue (M IDR)</div>
+          <input id="bgt-revenue" type="number" step="0.01" class="form-input form-input-num">
         </div>
       </div>
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Target Quantity per Produk (MT)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;" id="bgt-qty-grid"></div>
-      <button onclick="saveBudgetToDB()" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--plan),#7c3aed);border:none;border-radius:8px;color:#fff;font-family:Barlow Condensed,sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;">
-        💾 UPDATE TARGET BUDGET
+      <div class="form-label">Target Quantity per Produk (MT)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;" id="bgt-qty-grid"></div>
+      <button onclick="saveBudgetToDB()" class="btn-primary-block">
+        Update Target Budget
       </button>
     </div>
   </div>
@@ -320,8 +308,8 @@
     <div class="modal-header">
       <div class="modal-month" id="modal-title">January <span>2026</span></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button id="modal-print-btn" onclick="printMonthReport()" style="display:none;padding:7px 14px;background:linear-gradient(135deg,#1a73e8,#0d5dbf);color:#fff;border:none;border-radius:7px;font-family:Barlow Condensed,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;cursor:pointer;align-items:center;gap:6px;transition:background 0.15s;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <button id="modal-print-btn" onclick="printMonthReport()" class="btn btn-primary" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
           Print PDF
         </button>
         <button class="modal-close" onclick="closeModal(null, true)">✕</button>
@@ -370,7 +358,7 @@
                   <span>ACTUAL + PLAN</span><span id="modal-ach-combined-lbl">—</span>
                 </div>
                 <div class="modal-ach-bar-track">
-                  <div class="modal-ach-bar-fill" id="modal-combined-bar" style="background:linear-gradient(90deg,var(--actual),var(--plan))"></div>
+                  <div class="modal-ach-bar-fill" id="modal-combined-bar" style="background:var(--brand-dark)"></div>
                 </div>
               </div>
               <div class="modal-ach-sub" id="modal-ach-sub"></div>
@@ -379,64 +367,64 @@
         </div>
 
         <div id="modal-saveplan-panel" style="display:none;">
-          <div style="display:flex;align-items:center;gap:0;margin-bottom:14px;background:var(--s3);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
             <div id="sp-rev-tabs" style="display:flex;flex:1;overflow-x:auto;scrollbar-width:none;"></div>
-            <button onclick="spAddRevision()" title="Tambah project/deal baru" style="flex-shrink:0;padding:7px 14px;background:rgba(56,189,248,0.12);border:none;border-left:1px solid var(--border2);color:#38bdf8;font-size:18px;cursor:pointer;font-weight:700;">＋</button>
+            <button onclick="spAddRevision()" title="Tambah project/deal baru" style="flex-shrink:0;padding:8px 16px;background:var(--brand-blue);border:none;color:#FFFFFF;font-size:18px;cursor:pointer;font-weight:700;line-height:1;">＋</button>
           </div>
 
-          <div id="sp-total-strip" style="display:none;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.15);border-radius:7px;padding:8px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
-            <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Total Plan</span>
-            <span id="sp-total-margin" style="font-family:Barlow Condensed,sans-serif;font-size:16px;font-weight:800;color:#38bdf8;">—</span>
-            <span id="sp-total-pct" style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--muted);">—</span>
-            <span style="font-size:9px;color:var(--muted);margin-left:auto;" id="sp-total-count"></span>
+          <div id="sp-total-strip" style="display:none;background:rgba(32,119,189,0.06);border:1px solid rgba(32,119,189,0.20);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Total Plan</span>
+            <span id="sp-total-margin" style="font-family:inherit;font-size:16px;font-weight:700;color:var(--brand-blue);">—</span>
+            <span id="sp-total-pct" style="font-family:inherit;font-size:13px;font-weight:700;color:var(--muted);">—</span>
+            <span style="font-size:10px;color:var(--muted);margin-left:auto;font-weight:400;" id="sp-total-count"></span>
           </div>
 
           <div id="sp-form-area">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
               <div style="display:flex;align-items:center;gap:8px;">
-                <span id="sp-rev-badge" style="font-family:Barlow Condensed,sans-serif;font-size:13px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;padding:3px 10px;border-radius:99px;letter-spacing:0.5px;"></span>
-                <span id="sp-rev-ts" style="font-size:10px;color:var(--muted);"></span>
+                <span id="sp-rev-badge" style="font-family:inherit;font-size:11px;font-weight:700;background:rgba(32,119,189,0.10);color:var(--brand-blue);padding:3px 10px;border-radius:6px;letter-spacing:0;"></span>
+                <span id="sp-rev-ts" style="font-size:10px;color:var(--muted);font-weight:400;"></span>
               </div>
-              <button id="sp-del-btn" onclick="spDeleteRevision()" title="Hapus project ini" style="font-size:11px;color:#fb923c;background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.2);border-radius:5px;padding:3px 9px;cursor:pointer;">Hapus</button>
+              <button id="sp-del-btn" onclick="spDeleteRevision()" title="Hapus project ini" style="font-size:11px;color:var(--muted);background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Hapus</button>
             </div>
 
             <div style="margin-bottom:10px;">
-              <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Nama Project / Deal</div>
-              <input id="sp-name" type="text" placeholder="e.g. Pipeline Alpha..." style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;color:#fff;font-family:'Barlow',sans-serif;font-size:13px;outline:none;box-sizing:border-box;">
+              <div class="form-label">Nama Project / Deal</div>
+              <input id="sp-name" type="text" placeholder="e.g. Pipeline Alpha..." class="form-input">
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
               <div>
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Plan Margin (M IDR)</div>
-                <input id="sp-margin" type="number" step="0.01" oninput="spUpdatePct()" style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;color:#fff;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box;">
+                <div class="form-label">Plan Margin (M IDR)</div>
+                <input id="sp-margin" type="number" step="0.01" oninput="spUpdatePct()" class="form-input form-input-num">
               </div>
               <div>
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Plan Revenue (M IDR)</div>
-                <input id="sp-revenue" type="number" step="0.01" style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;color:#fff;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;outline:none;box-sizing:border-box;">
+                <div class="form-label">Plan Revenue (M IDR)</div>
+                <input id="sp-revenue" type="number" step="0.01" class="form-input form-input-num">
               </div>
               <div>
-                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">% vs Budget Total</div>
-                <div id="sp-pct-display" style="background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:8px 10px;font-family:Barlow Condensed,sans-serif;font-size:20px;font-weight:800;color:var(--muted2);">—</div>
+                <div class="form-label">% vs Budget Total</div>
+                <div id="sp-pct-display" class="form-readonly-num">—</div>
               </div>
             </div>
 
             <div style="margin-bottom:12px;">
-              <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Plan QTY per Produk (MT)</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;" id="sp-qty-grid"></div>
+              <div class="form-label">Plan QTY per Produk (MT)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="sp-qty-grid"></div>
             </div>
 
-            <div style="margin-bottom:12px;">
-              <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Notes / Customer</div>
-              <textarea id="sp-notes" placeholder="Customer, deal details, assumptions..." style="width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:9px 11px;color:var(--muted2);font-family:'Barlow',sans-serif;font-size:12px;resize:vertical;min-height:50px;outline:none;box-sizing:border-box;line-height:1.5;"></textarea>
+            <div style="margin-bottom:14px;">
+              <div class="form-label">Notes / Customer</div>
+              <textarea id="sp-notes" placeholder="Customer, deal details, assumptions..." class="form-input" style="resize:vertical;min-height:60px;line-height:1.5;"></textarea>
             </div>
 
-            <button onclick="savePlanData()" style="width:100%;padding:10px;background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;border-radius:8px;color:#fff;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;cursor:pointer;">
-              💾 SIMPAN PROJECT
+            <button onclick="savePlanData()" class="btn-primary-block">
+              Simpan Project
             </button>
           </div>
 
-          <div id="sp-history-area" style="margin-top:14px;border-top:1px solid var(--border2);padding-top:12px;display:none;">
-            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Semua Project Bulan Ini</div>
+          <div id="sp-history-area" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;display:none;">
+            <div class="form-label" style="margin-bottom:8px;">Semua Project Bulan Ini</div>
             <div id="sp-history-table"></div>
           </div>
         </div>
@@ -450,11 +438,11 @@
   </div>
 </div>
 
-<div id="analytics-modal-overlay" style="display:none;pointer-events:none;position:fixed;inset:0;z-index:500;background:rgba(10,25,60,0.5);backdrop-filter:blur(4px);align-items:center;justify-content:center;" onclick="if(event.target===this)closeAnalyticsModal()">
-  <div id="analytics-modal-box" style="background:var(--s1);border:1px solid var(--border2);border-radius:16px;width:580px;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(26,68,128,0.18);position:relative;">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 14px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--s1);z-index:1;border-radius:16px 16px 0 0;">
-      <div id="analytics-modal-title" style="font-family:Barlow Condensed,sans-serif;font-size:20px;font-weight:800;color:var(--text);letter-spacing:0.5px;"></div>
-      <button onclick="closeAnalyticsModal()" style="background:var(--s3);border:1px solid var(--border2);color:var(--muted2);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:18px;line-height:1;">&times;</button>
+<div id="analytics-modal-overlay" style="display:none;pointer-events:none;position:fixed;inset:0;z-index:500;background:rgba(35,31,32,0.45);align-items:center;justify-content:center;" onclick="if(event.target===this)closeAnalyticsModal()">
+  <div id="analytics-modal-box" style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:580px;max-height:80vh;overflow-y:auto;box-shadow:0 4px 16px rgba(35,31,32,0.12);position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1);z-index:1;border-radius:12px 12px 0 0;">
+      <div id="analytics-modal-title" style="font-family:inherit;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.2px;"></div>
+      <button onclick="closeAnalyticsModal()" class="modal-close">&times;</button>
     </div>
     <div id="analytics-modal-content" style="padding:0 0 8px;"></div>
   </div>
@@ -503,7 +491,7 @@
     <div class="modal-header">
       <div class="modal-month">Import <span>Project Sheet</span></div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span id="upload-modal-badge" style="display:none;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;background:#dbeafe;color:#1e5aa8;border:1px solid #b8d4ee;">File Loaded</span>
+        <span id="upload-modal-badge" style="display:none;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:6px;background:rgba(32,119,189,0.10);color:var(--brand-blue);border:1px solid rgba(32,119,189,0.20);">File Loaded</span>
         <button class="modal-close" onclick="closeUploadModal(null,true)">✕</button>
       </div>
     </div>
@@ -516,13 +504,13 @@
            ondragleave="this.classList.remove('upload-dz-hover')"
            ondrop="handleUploadDrop(event)"
            onclick="document.getElementById('upload-file-input').click()"
-           style="border:2px dashed rgba(30,90,168,0.3);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:20px;background:#f0f7ff;">
+           style="border:1.5px dashed var(--border2);border-radius:12px;padding:32px 24px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:18px;background:var(--s2);">
         <input type="file" id="upload-file-input" accept=".xls,.xlsx,.csv" multiple style="display:none" onchange="handleUploadFileSelect(event)">
         <div style="margin-bottom:12px;">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1e5aa8" stroke-width="1.5" style="opacity:0.8"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--brand-blue)" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;">Drag & Drop satu atau beberapa file</div>
-        <div style="font-size:12px;color:var(--muted2);">atau klik untuk memilih file &nbsp;·&nbsp; <span style="color:var(--actual);font-weight:600;">Multi-file OK</span> &nbsp;·&nbsp; Format: <span style="color:var(--actual);">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
+        <div style="font-family:inherit;font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">Drag & Drop satu atau beberapa file</div>
+        <div style="font-size:12px;color:var(--muted);font-weight:400;">atau klik untuk memilih file &nbsp;·&nbsp; <span style="color:var(--brand-blue);font-weight:700;">Multi-file OK</span> &nbsp;·&nbsp; Format: <span style="color:var(--brand-blue);font-weight:700;">.xls &nbsp;.xlsx &nbsp;.csv</span></div>
       </div>
 
       <!-- ── STEP 2: Preview (hidden until file parsed) ── -->
@@ -535,22 +523,21 @@
         <div id="upload-groups-container" style="margin-bottom:4px;"></div>
 
         <!-- Warning -->
-        <div id="upload-warning" style="display:none;padding:10px 14px;background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.3);border-radius:8px;font-size:12px;color:var(--warn);margin-bottom:12px;"></div>
+        <div id="upload-warning" style="display:none;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);margin-bottom:12px;font-weight:400;"></div>
 
       </div><!-- /preview -->
 
       <!-- ── Footer Actions ── -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid var(--border2);">
-        <div id="upload-file-info" style="font-size:12px;color:var(--muted2);">Belum ada file dipilih</div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-ghost" onclick="closeUploadModal(null,true)">Batal</button>
-          <button class="btn btn-ghost" onclick="resetUploadModal()" id="upload-btn-reset" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:1px solid var(--border);">
+        <div id="upload-file-info" style="font-size:12px;color:var(--muted);font-weight:400;">Belum ada file dipilih</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="closeUploadModal(null,true)">Batal</button>
+          <button class="btn-secondary" onclick="resetUploadModal()" id="upload-btn-reset" style="display:none;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg>
             Ganti File
           </button>
-          <button id="upload-btn-submit" onclick="submitUploadToDb()" disabled
-            class="upload-submit-btn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
+          <button id="upload-btn-submit" onclick="submitUploadToDb()" disabled class="upload-submit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
             Simpan ke Database
           </button>
         </div>
@@ -564,47 +551,41 @@
      DELETE PS CONFIRM MODAL
      ═══════════════════════════════════════════════════════════ -->
 <div id="delete-ps-overlay"
-     style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.25s;"
+     style="display:none;position:fixed;inset:0;z-index:600;background:rgba(35,31,32,0.5);align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.25s;"
      onclick="if(event.target===this)closeDeleteModal()">
-  <div style="background:var(--s1);border:1px solid rgba(244,63,94,0.35);border-radius:14px;width:420px;max-width:92vw;padding:0;box-shadow:0 16px 48px rgba(26,68,128,0.18);transform:translateY(16px) scale(0.97);transition:transform 0.25s cubic-bezier(.4,0,.2,1);">
+  <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;width:420px;max-width:92vw;padding:0;box-shadow:0 4px 16px rgba(35,31,32,0.12);transform:translateY(16px) scale(0.97);transition:transform 0.25s cubic-bezier(.4,0,.2,1);">
 
     <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px 16px;border-bottom:1px solid var(--border2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px 14px;border-bottom:1px solid var(--border);">
       <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.3);display:flex;align-items:center;justify-content:center;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.5">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--s3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
           </svg>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--text);letter-spacing:0.5px;">Hapus Project Sheet</div>
+        <div style="font-family:inherit;font-size:16px;font-weight:700;color:var(--text);">Hapus Project Sheet</div>
       </div>
-      <button onclick="closeDeleteModal()" style="width:30px;height:30px;border-radius:6px;background:var(--s3);border:1px solid var(--border2);color:var(--muted2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="closeDeleteModal()" class="modal-close">✕</button>
     </div>
 
     <!-- Body -->
-    <div style="padding:20px 24px 24px;">
-      <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.2);border-radius:10px;padding:14px 16px;margin-bottom:18px;">
-        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(244,63,94,0.7);margin-bottom:6px;">Project Sheet yang akan dihapus</div>
-        <div id="delete-ps-name" style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px;"></div>
-        <div id="delete-ps-number" style="font-size:11px;color:var(--muted2);font-family:monospace;"></div>
+    <div style="padding:18px 22px 22px;">
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-weight:700;">Project Sheet yang akan dihapus</div>
+        <div id="delete-ps-name" style="font-family:inherit;font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;"></div>
+        <div id="delete-ps-number" style="font-size:11px;color:var(--muted);font-family:'Courier New',monospace;"></div>
       </div>
 
-      <div style="font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:20px;">
-        Tindakan ini akan menghapus <strong style="color:var(--text)">semua data</strong> PS ini dari database, termasuk seluruh item produk.
-        Nilai actual bulan terkait akan <strong style="color:var(--text)">otomatis diperbarui</strong>.
-        <span style="color:var(--over);font-weight:600;">Aksi ini tidak bisa dibatalkan.</span>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:18px;">
+        Tindakan ini akan menghapus <strong style="color:var(--text);font-weight:700;">semua data</strong> PS ini dari database, termasuk seluruh item produk.
+        Nilai actual bulan terkait akan <strong style="color:var(--text);font-weight:700;">otomatis diperbarui</strong>.
+        <span style="color:var(--text);font-weight:700;">Aksi ini tidak bisa dibatalkan.</span>
       </div>
 
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button onclick="closeDeleteModal()"
-          style="padding:9px 18px;border-radius:7px;background:var(--s2);border:1px solid var(--border2);color:var(--muted2);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">
-          Batal
-        </button>
-        <button id="delete-ps-confirm-btn" onclick="executeDeletePS()"
-          style="display:flex;align-items:center;gap:7px;padding:9px 18px;border-radius:7px;background:linear-gradient(135deg,#be123c,#9f1239);border:none;color:#fff;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;"
-          onmouseover="this.style.background='linear-gradient(135deg,#e11d48,#be123c)'"
-          onmouseout="this.style.background='linear-gradient(135deg,#be123c,#9f1239)'">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <button onclick="closeDeleteModal()" class="btn-secondary">Batal</button>
+        <button id="delete-ps-confirm-btn" onclick="executeDeletePS()" class="btn-danger-block">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
           </svg>
           Ya, Hapus
@@ -614,9 +595,81 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     IMPORT BUDGET EXCEL MODAL
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="budget-import-overlay" onclick="closeBudgetImportModal(event)">
+  <div class="modal" id="budget-import-modal" style="width:680px;">
+
+    <div class="modal-header">
+      <div class="modal-month">Import <span>Budget Excel</span></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <!-- Year stepper: target import + delete -->
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="form-label" style="margin:0;">Tahun</span>
+          <div style="display:flex;align-items:center;background:var(--s3);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <button onclick="shiftBudgetImportYear(-1)" style="width:28px;height:30px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;" title="Tahun sebelumnya">‹</button>
+            <input id="bi-year-input" type="number" min="2000" max="2100" step="1"
+              onchange="onBudgetImportYearChange()"
+              style="width:64px;height:30px;border:none;background:transparent;color:var(--brand-dark);font-family:inherit;font-size:14px;font-weight:700;text-align:center;outline:none;-moz-appearance:textfield;">
+            <button onclick="shiftBudgetImportYear(1)" style="width:28px;height:30px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;" title="Tahun berikutnya">›</button>
+          </div>
+        </div>
+        <button onclick="deleteBudgetForYear()" class="btn-secondary" style="display:flex;align-items:center;gap:6px;" title="Hapus seluruh budget tahun yang dipilih">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          Hapus Budget
+        </button>
+        <button class="modal-close" onclick="closeBudgetImportModal(null,true)">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <!-- Drop zone -->
+      <div id="bi-dropzone"
+           ondragover="event.preventDefault();this.classList.add('upload-dz-hover')"
+           ondragleave="this.classList.remove('upload-dz-hover')"
+           ondrop="handleBudgetDrop(event)"
+           onclick="document.getElementById('bi-file-input').click()"
+           style="border:1.5px dashed var(--border2);border-radius:12px;padding:32px 24px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:16px;background:var(--s2);">
+        <input type="file" id="bi-file-input" accept=".xls,.xlsx" style="display:none" onchange="handleBudgetSelect(event)">
+        <div style="margin-bottom:12px;">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--brand-blue)" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </div>
+        <div style="font-family:inherit;font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">Drag & Drop file Budget</div>
+        <div style="font-size:12px;color:var(--muted);font-weight:400;">atau klik untuk memilih · Format: <span style="color:var(--brand-blue);font-weight:700;">.xls .xlsx</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;font-weight:400;">Excel harus punya section <strong>VOLUME</strong>, <strong>REVENUE</strong>, <strong>MARGIN</strong> dengan header Salesperson · Segment · Product · Import/Local · 12 bulan</div>
+      </div>
+
+      <!-- Preview -->
+      <div id="bi-preview" style="display:none;">
+        <div id="bi-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;"></div>
+        <div id="bi-meta" style="font-size:12px;color:var(--muted);font-weight:400;line-height:1.5;margin-bottom:14px;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;"></div>
+        <div class="form-label" style="margin-bottom:6px;">Produk yang terdeteksi (canonical)</div>
+        <div id="bi-products" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;"></div>
+      </div>
+
+      <!-- Warning -->
+      <div id="bi-warn" style="display:none;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);margin-bottom:12px;font-weight:400;"></div>
+
+      <!-- Footer -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:1px solid var(--border);">
+        <div id="bi-file-info" style="font-size:12px;color:var(--muted);font-weight:400;">Belum ada file dipilih</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="closeBudgetImportModal(null,true)">Batal</button>
+          <button id="bi-submit" onclick="submitBudgetImport()" disabled class="upload-submit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M5 12l5 5L20 7"/></svg>
+            Import ke Database
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/js/state.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/modals.js"></script>
+<script src="/js/budget.js"></script>
 <script src="/js/chat.js"></script>
 <script src="/js/app.js"></script>
 
@@ -625,11 +678,11 @@
 <div id="kpi-att-tip" style="
   display:none; opacity:0; pointer-events:none;
   position:fixed; z-index:9999;
-  background:var(--s1); border:1px solid var(--border2);
+  background:var(--s1); border:1px solid var(--border);
   border-radius:8px; padding:10px 14px;
-  font-size:11px; color:var(--muted2); font-family:'Barlow',sans-serif;
+  font-size:11px; color:var(--muted); font-family:inherit; font-weight:400;
   white-space:nowrap; line-height:1.7;
-  box-shadow:0 12px 32px rgba(0,0,0,0.15);
+  box-shadow:0 4px 12px rgba(35,31,32,0.10);
   min-width:230px;
   transition:opacity 0.15s;">
 </div>

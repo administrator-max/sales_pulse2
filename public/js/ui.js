@@ -7,13 +7,16 @@ function buildChart() {
 
   // ── Tentukan bulan yang ditampilkan berdasarkan filter ──────────────────────
   const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
-  // Jika filter bulan aktif: hanya tampilkan 1 bulan
-  // Jika All: tampilkan semua 12 bulan
-  const activeIndices = fm === -1
-    ? Array.from({length: 12}, (_, i) => i)
-    : [fm];
+  const activeIndices = fm === -1 ? Array.from({length: 12}, (_, i) => i) : [fm];
+  const activeLabels  = activeIndices.map(i => MONTHS[i]);
 
-  const activeLabels   = activeIndices.map(i => MONTHS[i]);
+  // ── Branch: filter ke specific canonical product ───────────────────────────
+  // Render simple Budget vs Actual (2 bar per bulan), tanpa stacking macro
+  const cp = (typeof CHART_PRODUCT !== 'undefined') ? CHART_PRODUCT : '__all__';
+  if (cp && cp !== '__all__') {
+    return _buildChartForProduct(cp, fm, activeIndices, activeLabels);
+  }
+
   const budgetFiltered = activeIndices.map(i => getBudgetQtyMonthly()[i]);
 
   // ── Build catData & planData hanya untuk bulan aktif ───────────────────────
@@ -90,13 +93,12 @@ function buildChart() {
 
         const pct    = (tot / bgt * 100).toFixed(0) + '%';
         const isOver = tot >= bgt;
-        const color  = isOver ? '#0f7343' : '#b45309';
+        const color  = isOver ? '#0A6A36' : '#2077BD';
 
-        // Selalu tampilkan di ATAS puncak bar
         const yPos = yTop - 6;
 
         ctx.save();
-        ctx.font         = '800 13px "Barlow Condensed", sans-serif';
+        ctx.font         = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif';
         ctx.fillStyle    = color;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'bottom';
@@ -119,8 +121,8 @@ function buildChart() {
           type: 'bar',
           data: budgetFiltered,
           backgroundColor: 'rgba(255,255,255,0.0)',
-          borderColor: 'rgba(26,68,128,0.25)',
-          borderWidth: 2,
+          borderColor: 'rgba(55,56,150,0.30)',
+          borderWidth: 1.5,
           borderRadius: 4,
           borderSkipped: false,
           order: 3,
@@ -172,17 +174,18 @@ function buildChart() {
         legend: {
           display: true, position: 'top', align: 'end',
           labels: {
-            color: '#5a7a99', font: { size: 11 }, boxWidth: 10, boxHeight: 8, padding: 18,
-            filter: item => item.text !== 'Budget'
-              && !item.text.startsWith('Plan ')
-              
+            color: '#6D6E71',
+            font: { size: 11, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '700' },
+            boxWidth: 10, boxHeight: 8, padding: 18,
+            filter: item => item.text !== 'Budget' && !item.text.startsWith('Plan ')
           }
         },
         tooltip: {
-          backgroundColor: '#ffffff', borderColor: '#d4e6f7', borderWidth: 1,
-          titleFont: { family: "'Barlow Condensed',sans-serif", size: 14, weight: '700' },
-          bodyFont:  { family: "'Barlow',sans-serif", size: 12 }, padding: 12,
-          titleColor: '#1a2f4a', bodyColor: '#3d617f',
+          backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1,
+          titleFont: { family: "'Helvetica Neue', Helvetica, Arial, sans-serif", size: 13, weight: '700' },
+          bodyFont:  { family: "'Helvetica Neue', Helvetica, Arial, sans-serif", size: 12, weight: '400' },
+          padding: 12,
+          titleColor: '#231F20', bodyColor: '#6D6E71',
           callbacks: {
             title: items => {
               const slot = items[0].dataIndex;
@@ -225,7 +228,7 @@ function buildChart() {
               return lines;
             },
             labelColor: ctx => {
-              if (ctx.dataset.label === 'Budget') return { borderColor: '#b8d4ee', backgroundColor: '#eaf3ff' };
+              if (ctx.dataset.label === 'Budget') return { borderColor: '#D1D5DB', backgroundColor: '#F1F3F5' };
               const lbl = ctx.dataset.label.replace('Plan ', '');
               const cat = PROD_CATS.find(c => c.label === lbl);
               return cat ? { borderColor: cat.color, backgroundColor: cat.color } : {};
@@ -237,19 +240,20 @@ function buildChart() {
         x: {
           grid: { display: false }, border: { display: false },
           ticks: {
-            font: { size: 12, family: "'Barlow Condensed',sans-serif", weight: '600' },
+            font: { size: 12, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '700' },
             color: idx => {
-              if (fm === -1) return '#606870';
-              return idx.index === 0 ? '#1e5aa8' : '#5a7a99';
+              if (fm === -1) return '#6D6E71';
+              return idx.index === 0 ? '#2077BD' : '#6D6E71';
             }
           },
           stacked: true
         },
         y: {
-          grid: { color: '#eaf3ff' }, border: { display: false },
+          grid: { color: '#F1F3F5' }, border: { display: false },
           stacked: true,
           ticks: {
-            font: { size: 10 }, color: '#5a7a99',
+            font: { size: 10, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '400' },
+            color: '#6D6E71',
             callback: v => Math.round(v).toLocaleString('id-ID') + ' MT'
           }
         }
@@ -266,6 +270,126 @@ function buildChart() {
       onHover: (e) => { e.native.target.style.cursor = 'pointer'; }
     },
     plugins: (typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : []).concat([pctLabelPlugin])
+  });
+}
+
+// ── Specialized chart untuk single canonical product ───────────────────────
+function _buildChartForProduct(productName, fm, activeIndices, activeLabels) {
+  const bp = (BUDGET.products && BUDGET.products[productName]) || null;
+  const ap = (typeof ACTUAL_PRODUCTS !== 'undefined' && ACTUAL_PRODUCTS[productName]) || null;
+
+  const budgetMT = activeIndices.map(i => bp ? (bp.volume[i] || 0) : 0);
+  const actualMT = activeIndices.map(i => ap ? (ap.volume[i] || 0) : 0);
+
+  // Color tiap bar actual: hijau kalau ≥ budget, biru kalau di bawah
+  const actualColors = actualMT.map((v, idx) => {
+    const b = budgetMT[idx];
+    if (!v) return 'rgba(32,119,189,0.15)';
+    return v >= b && b > 0 ? '#2AB675' : '#2077BD';
+  });
+
+  const pctLabelPlugin = {
+    id: 'pctLabel',
+    afterDraw(chart) {
+      const { ctx } = chart;
+      const ds = chart.data.datasets.find(d => d.label === 'Actual');
+      if (!ds) return;
+      const meta = chart.getDatasetMeta(chart.data.datasets.indexOf(ds));
+      activeIndices.forEach((_, slot) => {
+        const v = actualMT[slot], b = budgetMT[slot];
+        if (!v || b <= 0) return;
+        const bar = meta.data[slot];
+        if (!bar) return;
+        const props = bar.getProps(['x','y'], true);
+        const pct = (v / b * 100).toFixed(0) + '%';
+        const color = v >= b ? '#0A6A36' : '#2077BD';
+        ctx.save();
+        ctx.font = '700 12px "Helvetica Neue", Helvetica, Arial, sans-serif';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.shadowColor = 'rgba(255,255,255,0.8)';
+        ctx.shadowBlur = 5;
+        ctx.fillText(pct, props.x, props.y - 6);
+        ctx.restore();
+      });
+    },
+  };
+
+  mainChart = new Chart(chartCtx, {
+    type: 'bar',
+    data: {
+      labels: activeLabels,
+      datasets: [
+        {
+          label: 'Budget',
+          data: budgetMT,
+          backgroundColor: 'rgba(255,255,255,0)',
+          borderColor: 'rgba(55,56,150,0.40)',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          categoryPercentage: 0.7,
+          barPercentage: 0.95,
+        },
+        {
+          label: 'Actual',
+          data: actualMT,
+          backgroundColor: actualColors,
+          borderColor: 'transparent',
+          borderRadius: 4,
+          borderSkipped: false,
+          categoryPercentage: 0.7,
+          barPercentage: 0.65,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: fm === -1 ? 3.5 : 2.0,
+      layout: { padding: { top: 28, bottom: 4, left: 4, right: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: { color: '#6D6E71', font: { size: 11, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '700' }, boxWidth: 10, boxHeight: 8, padding: 14 },
+        },
+        tooltip: {
+          backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1,
+          titleFont: { family: "'Helvetica Neue', Helvetica, Arial, sans-serif", size: 13, weight: '700' },
+          bodyFont:  { family: "'Helvetica Neue', Helvetica, Arial, sans-serif", size: 12, weight: '400' },
+          padding: 12, titleColor: '#231F20', bodyColor: '#6D6E71',
+          callbacks: {
+            title: items => `${productName} · ${items[0].label}`,
+            label: ctx => {
+              const v = Math.round(ctx.parsed.y).toLocaleString('id-ID');
+              return `  ${ctx.dataset.label}:  ${v} MT`;
+            },
+            afterBody: items => {
+              const slot = items[0].dataIndex;
+              const v = actualMT[slot], b = budgetMT[slot];
+              if (!v || !b) return [];
+              const pct = (v / b * 100).toFixed(1);
+              return ['', `  ── Achievement:  ${pct}% (${Math.round(v).toLocaleString('id-ID')} / ${Math.round(b).toLocaleString('id-ID')} MT)`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false }, border: { display: false },
+          ticks: { font: { size: 12, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '700' }, color: '#6D6E71' },
+        },
+        y: {
+          grid: { color: '#F1F3F5' }, border: { display: false },
+          beginAtZero: true,
+          ticks: { font: { size: 10, family: "'Helvetica Neue', Helvetica, Arial, sans-serif", weight: '400' }, color: '#6D6E71',
+                   callback: v => Math.round(v).toLocaleString('id-ID') + ' MT' },
+        },
+      },
+    },
+    plugins: [pctLabelPlugin],
   });
 }
 
@@ -287,30 +411,32 @@ function buildTable() {
     if(actual!=null) totActual+=actual;
     if(plan!=null)   totPlan+=plan;
 
-    const achColor = attPct==null?'var(--muted)':attPct>=80?'var(--ok)':attPct>=30?'var(--warn)':'var(--over)';
+    // Brand: green = positive achievement (>=80%), blue = neutral (30-80%), gray = below
+    const achColor = attPct==null?'var(--muted)':attPct>=80?'var(--brand-green-dark)':attPct>=30?'var(--brand-blue)':'var(--muted)';
     const achW = attPct!=null ? Math.min(attPct,100).toFixed(1) : 0;
     const attChip = attPct==null
       ? `<span style="color:var(--muted);font-size:12px">—</span>`
-      : `<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;color:${achColor};line-height:1">${attPct.toFixed(1)}%</span><span style="font-size:10px;color:var(--muted)">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${achW}%;background:${achColor};border-radius:99px;transition:width 1.1s cubic-bezier(.4,0,.2,1)"></div></div></div>`;
+      : `<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:inherit;font-size:15px;font-weight:700;color:${achColor};line-height:1">${attPct.toFixed(1)}%</span><span style="font-size:10px;color:var(--muted);font-weight:400;">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${achW}%;background:${achColor};border-radius:99px;transition:width 1.1s cubic-bezier(.4,0,.2,1)"></div></div></div>`;
 
     const statusPill = isPS ? `<span class="month-tag-pill pill-ps">PS</span>`
       : isCur ? `<span class="month-tag-pill pill-cur">NOW</span>`
-      : actual!=null ? `<span class="month-tag-pill pill-done">✓</span>` : '';
+      : actual!=null ? `<span class="month-tag-pill pill-done">DONE</span>` : '';
 
+    // Gap: positive = green, negative = dark text (no red per brand)
     const gapStr = gap==null ? '<td style="color:var(--muted)">—</td>'
-      : gap>=0 ? `<td style="color:var(--ok);font-size:11px">+${fmt(gap,2)}</td>`
-      : `<td style="color:var(--over);font-size:11px">${fmt(gap,2)}</td>`;
+      : gap>=0 ? `<td style="color:var(--brand-green-dark);font-size:12px;font-weight:700;">+${fmt(gap,2)}</td>`
+      : `<td style="color:var(--text);font-size:12px;font-weight:700;">${fmt(gap,2)}</td>`;
 
-    const actualColor = actual!=null?(isPS?'#1e5aa8':'var(--actual)'):'var(--muted)';
+    const actualColor = actual!=null?(isPS?'var(--brand-blue)':'var(--brand-blue)'):'var(--muted)';
     const tr = document.createElement('tr');
     if(isCur) tr.classList.add('is-current');
-    if(isPS)  { tr.style.background='#f0f7ff'; }
+    if(isPS)  { tr.style.background='rgba(32,119,189,0.04)'; }
     tr.innerHTML = `
       <td>${m} ${statusPill}</td>
       <td>${fmt(budget,2)}</td>
-      <td style="color:${actualColor};font-weight:${actual!=null?'600':'400'}">${actual!=null?fmt(actual,2):'—'}</td>
-      <td style="color:${plan!=null?'var(--plan)':'var(--muted)'}">${plan!=null?fmt(plan,2):'—'}</td>
-      <td style="color:var(--muted2)">${marginP!=null?fmtP(marginP):'—'}</td>
+      <td style="color:${actualColor};font-weight:${actual!=null?'700':'400'}">${actual!=null?fmt(actual,2):'—'}</td>
+      <td style="color:${plan!=null?'var(--brand-dark)':'var(--muted)'}">${plan!=null?fmt(plan,2):'—'}</td>
+      <td style="color:var(--muted)">${marginP!=null?fmtP(marginP):'—'}</td>
       <td>${attChip}</td>
       ${gapStr}
     `;
@@ -325,7 +451,7 @@ function buildTable() {
   const reported = ACTUAL.margin.filter(v=>v!=null).length;
   const ytdBgt = BUDGET.margin.slice(0,Math.max(reported,1)).reduce((a,b)=>a+b,0);
   const ytdPct = totActual>0 && ytdBgt > 0?(totActual/ytdBgt*100).toFixed(1):null;
-  const col = ytdPct!=null?(ytdPct>=80?'var(--ok)':ytdPct>=30?'var(--warn)':'var(--over)'):'var(--muted)';
+  const col = ytdPct!=null?(ytdPct>=80?'var(--brand-green-dark)':ytdPct>=30?'var(--brand-blue)':'var(--muted)'):'var(--muted)';
   const bw  = ytdPct!=null?Math.min(parseFloat(ytdPct),100).toFixed(1):0;
   tr.innerHTML = `
     <td>FULL YEAR</td>
@@ -333,7 +459,7 @@ function buildTable() {
     <td>${totActual>0?fmt(totActual,2):'—'}</td>
     <td>${totPlan>0?fmt(totPlan,2):'—'}</td>
     <td>—</td>
-    <td>${ytdPct!=null?`<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;color:${col};line-height:1">${ytdPct}%</span><span style="font-size:10px;color:var(--muted)">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bw}%;background:${col};border-radius:99px"></div></div></div>`:'—'}</td>
+    <td>${ytdPct!=null?`<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:inherit;font-size:15px;font-weight:700;color:${col};line-height:1">${ytdPct}%</span><span style="font-size:10px;color:var(--muted);font-weight:400;">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bw}%;background:${col};border-radius:99px"></div></div></div>`:'—'}</td>
     <td>${totActual>0?fmt(totActual-totBudget,2):'—'}</td>
   `;
   tbody.appendChild(tr);
@@ -349,10 +475,11 @@ function buildWaterfall() {
     const isPS = PS_CHAINS[m.toLowerCase()] && PS_CHAINS[m.toLowerCase()].length > 0;
     const budgetW=(budget/maxBudget)*100;
     const actualW=actual!=null && budget > 0 ? Math.min((actual/budget)*budgetW,budgetW):0;
-    const actualColor=actual==null?'transparent':isPS?'#1e5aa8':(actual/budget)>=0.8?'var(--actual)':(actual/budget)>=0.3?'var(--warn)':'var(--over)';
+    // Brand: green for >=80% achievement, blue otherwise — gray when below 30%
+    const actualColor=actual==null?'transparent':(actual/budget)>=0.8?'var(--brand-green)':(actual/budget)>=0.3?'var(--brand-blue)':'var(--muted)';
     const div=document.createElement('div');
     div.className='wf-row';
-    div.innerHTML=`<div class="wf-month" style="${isPS?'color:#f59e0b':''}">${m}</div><div class="wf-track"><div class="wf-bg"></div><div class="wf-budget-bar" style="width:${budgetW}%"></div><div class="wf-actual-bar" data-w="${actualW}" style="background:${actualColor}"></div></div><div class="wf-val" style="color:${actual!=null?actualColor:'var(--muted)'}">  ${actual!=null?fmt(actual,2):fmt(budget,2)}</div>`;
+    div.innerHTML=`<div class="wf-month" style="${isPS?'color:var(--brand-blue)':''}">${m}</div><div class="wf-track"><div class="wf-bg"></div><div class="wf-budget-bar" style="width:${budgetW}%"></div><div class="wf-actual-bar" data-w="${actualW}" style="background:${actualColor}"></div></div><div class="wf-val" style="color:${actual!=null?actualColor:'var(--muted)'}">  ${actual!=null?fmt(actual,2):fmt(budget,2)}</div>`;
     el.appendChild(div);
   });
   setTimeout(()=>{ document.querySelectorAll('.wf-actual-bar').forEach(el=>{el.style.width=(el.dataset.w||0)+'%';}); },150);
@@ -373,34 +500,33 @@ function updateKPIs() {
   document.getElementById('kpi-budget').textContent = fmt(totalBudget,2);
   document.getElementById('kpi-actual').textContent = ytdActual > 0 ? fmt(ytdActual,2) : '—';
   document.getElementById('kpi-actual-sub').textContent = ytdActual > 0 ? periodLabel : 'No data yet';
-  document.getElementById('kpi-reported').textContent = fm === -1 ? (reported + ' / 12') : (reported > 0 ? '✓ Reported' : '— Not reported');
+  document.getElementById('kpi-reported').textContent = fm === -1 ? (reported + ' / 12') : (reported > 0 ? 'Reported' : 'Not reported');
   document.getElementById('footer-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
 
   const attEl  = document.getElementById('kpi-att');
   const attTip = document.getElementById('kpi-att-tip');
   if (ytdActual > 0 && totalBudget > 0) {
     const att    = (ytdActual / totalBudget * 100).toFixed(1);
-    const color  = att>=80 ? 'var(--ok)' : att>=30 ? 'var(--warn)' : 'var(--over)';
+    const color  = att>=80 ? 'var(--brand-green-dark)' : att>=30 ? 'var(--brand-blue)' : 'var(--muted)';
     const period = (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && typeof _MS !== 'undefined')
       ? _MS[FILTER_MONTH] + ' ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '')
       : 'YTD ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '');
     if (attEl) {
       attEl.textContent  = att + '%';
       attEl.className    = 'kpi-delta ' + (att>=80 ? 'delta-good' : att>=30 ? 'delta-na' : 'delta-bad');
-      // Hapus position:absolute dari element karena sudah di wrapper
     }
     if (attTip) {
       attTip.innerHTML = `
-        <div style="border-top:1px solid var(--border);padding-top:2px;">
+        <div style="padding-top:2px;">
           <div style="display:flex;justify-content:space-between;gap:16px;">
             <span>Actual (${period})</span>
-            <span style="color:var(--actual);font-weight:600;">${fmt(ytdActual,2)} MIDR</span>
+            <span style="color:var(--brand-blue);font-weight:700;">${fmt(ytdActual,2)} MIDR</span>
           </div>
           <div style="display:flex;justify-content:space-between;gap:16px;">
             <span>Budget target</span>
-            <span style="font-weight:600;">${fmt(totalBudget,2)} MIDR</span>
+            <span style="font-weight:700;color:var(--text);">${fmt(totalBudget,2)} MIDR</span>
           </div>
-          <div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;">
+          <div style="display:flex;justify-content:space-between;gap:16px;margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">
             <span>Achievement</span>
             <span style="color:${color};font-weight:700;">${att}%</span>
           </div>
@@ -448,13 +574,13 @@ function getActiveQtyData() {
 }
 
 function getProdCategoryData() {
-  // 5 kategori produk — GI dan GL ditambahkan agar tidak salah masuk ke PPGL
+  // Brand palette only
   const cats = {
-    sheetPile:  { label:'Sheet Pile',   color:'#2196f3', margin:0, revenue:0, mt:0, projects:[] },
-    weldedPipe: { label:'Welded Pipes', color:'#43a047', margin:0, revenue:0, mt:0, projects:[] },
-    ppgl:       { label:'PPGL / Coil',  color:'#1565c0', margin:0, revenue:0, mt:0, projects:[] },
-    gi:         { label:'GI Steel',     color:'#66bb6a', margin:0, revenue:0, mt:0, projects:[] },
-    gl:         { label:'GL Steel',     color:'#00897b', margin:0, revenue:0, mt:0, projects:[] },
+    sheetPile:  { label:'Sheet Pile',   color:'#373896', margin:0, revenue:0, mt:0, projects:[] },
+    weldedPipe: { label:'Welded Pipes', color:'#2077BD', margin:0, revenue:0, mt:0, projects:[] },
+    ppgl:       { label:'PPGL / Coil',  color:'#231F20', margin:0, revenue:0, mt:0, projects:[] },
+    gi:         { label:'GI Steel',     color:'#6D6E71', margin:0, revenue:0, mt:0, projects:[] },
+    gl:         { label:'GL Steel',     color:'#2AB675', margin:0, revenue:0, mt:0, projects:[] },
   };
 
   // Helper: klasifikasi project dari nama (untuk data lama/seeded yang tidak punya category)
@@ -525,15 +651,15 @@ function buildAnalytics() {
       ? budgetMonthly.reduce((a,b)=>a+b,0)
       : (budgetMonthly[fm] || 0);
     const totalPct = totalBudgMT > 0 ? (totalMT/totalBudgMT*100) : 0;
-    const pctColor = totalPct>=100?'var(--ok)':totalPct>=50?'var(--warn)':'var(--over)';
-    
+    const pctColor = totalPct>=100?'var(--brand-green-dark)':totalPct>=50?'var(--brand-blue)':'var(--muted)';
+
     mq.innerHTML = `
-      <div class="mini-highlight" style="color:#1e5aa8">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
+      <div class="mini-highlight" style="color:var(--brand-blue)">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
       <div class="mini-sub">of ${totalBudgMT.toLocaleString('id-ID')} MT · <span style="color:${pctColor};font-weight:700">${totalPct.toFixed(1)}%</span></div>
       <div class="mini-badges">
         ${activeKeys.map(mk => {
             const mt = (QTY_DATA[mk]||[]).reduce((s,p)=>s+weightToMT(p.totalWeight),0);
-            return mt > 0 ? `<span class="mini-badge" style="background:#e8f0fe;color:#1e5aa8">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
+            return mt > 0 ? `<span class="mini-badge" style="background:rgba(32,119,189,0.10);color:var(--brand-blue)">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
         }).join('')}
       </div>
     `;
@@ -545,18 +671,18 @@ function buildAnalytics() {
   
   const mpM = document.getElementById('mini-prod-margin');
   if(mpM) mpM.innerHTML = `
-    <div class="mini-highlight" style="color:var(--ok)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
+    <div class="mini-highlight" style="color:var(--brand-green-dark)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
     <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} kategori produk</div>
     <div class="mini-badges">
-      ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}22;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
+      ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
     </div>`;
-    
+
   const mpQ = document.getElementById('mini-prod-qty');
   if(mpQ) mpQ.innerHTML = `
-    <div class="mini-highlight" style="color:#1a4480">${Math.round(totalMTProd).toLocaleString('id-ID')} MT</div>
+    <div class="mini-highlight" style="color:var(--brand-dark)">${Math.round(totalMTProd).toLocaleString('id-ID')} MT</div>
     <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · volume produk</div>
     <div class="mini-badges">
-      ${[...prodCats].sort((a,b)=>b.mt-a.mt).map(p=>`<span class="mini-badge" style="background:${p.color}22;color:${p.color}">${p.label}: ${Math.round(p.mt).toLocaleString('id-ID')} MT</span>`).join('')}
+      ${[...prodCats].sort((a,b)=>b.mt-a.mt).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${Math.round(p.mt).toLocaleString('id-ID')} MT</span>`).join('')}
     </div>`;
 
   const custMap = getCustomerData();
@@ -564,20 +690,20 @@ function buildAnalytics() {
   const top1m = byMargin[0];
   const mc = document.getElementById('mini-cust-margin');
   if(mc && top1m) mc.innerHTML = `
-    <div class="mini-highlight" style="color:#0f7343">${top1m[1].margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
+    <div class="mini-highlight" style="color:var(--brand-green-dark)">${top1m[1].margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
     <div class="mini-sub">${top1m[0].replace('PT. ','').replace(' Indonesia','')}</div>
     <div class="mini-badges">
-      ${byMargin.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#e6f4ea;color:#0f7343">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
+      ${byMargin.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:rgba(42,182,117,0.10);color:var(--brand-green-dark)">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
     </div>`;
 
   const byQty = Object.entries(custMap).filter(([,v])=>v.kg>0).sort((a,b)=>b[1].kg-a[1].kg);
   const top1q = byQty[0];
   const mq2 = document.getElementById('mini-cust-qty');
   if(mq2 && top1q) mq2.innerHTML = `
-    <div class="mini-highlight" style="color:#1e5aa8">${Math.round(top1q[1].kg/1000).toLocaleString('id-ID')} MT</div>
+    <div class="mini-highlight" style="color:var(--brand-blue)">${Math.round(top1q[1].kg/1000).toLocaleString('id-ID')} MT</div>
     <div class="mini-sub">${top1q[0].replace('PT. ','').replace(' Indonesia','')}</div>
     <div class="mini-badges">
-      ${byQty.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:#e8f0fe;color:#1e5aa8">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
+      ${byQty.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:rgba(32,119,189,0.10);color:var(--brand-blue)">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
     </div>`;
 }
 

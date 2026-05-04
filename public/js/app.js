@@ -163,9 +163,9 @@ function renderUploadPreview(errors) {
   const summaryBar = document.getElementById('upload-summary-bar');
   if (totalGroups > 1 && summaryBar) {
     summaryBar.innerHTML = `
-      <div style="width:100%;padding:10px 14px;background:#eaf3ff;border:1px solid var(--border);border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div style="width:100%;padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);">Grand Total · ${totalFiles} file · ${totalGroups} projects</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--actual);">${fmtM(grandTotalM)}</div>
+        <div style="font-family:inherit;font-size:18px;font-weight:700;color:var(--actual);">${fmtM(grandTotalM)}</div>
       </div>`;
   } else if (summaryBar) {
     summaryBar.innerHTML = '';
@@ -191,9 +191,9 @@ function renderUploadPreview(errors) {
     const totalWeightKg   = files.reduce((s, f) => f.items.reduce((ss, it) => ss + (it.totalWeight || 0), 0) + s, 0);
     const consolidatedPct = totalSalesIDR > 0 ? (totalMarginIDR / totalSalesIDR * 100).toFixed(2) : '0.00';
     const isMulti         = files.length > 1;
-    const accentColor     = isMulti ? '#1e5aa8' : '#0288d1';
+    const accentColor     = isMulti ? '#373896' : '#2077BD';
     const borderColor     = isMulti ? 'rgba(30,90,168,0.25)' : 'var(--border2)';
-    const bgColor         = isMulti ? '#f0f7ff' : 'var(--s2)';
+    const bgColor         = isMulti ? 'rgba(55,56,150,0.04)' : 'var(--s2)';
 
     // Per-file rows
     const fileRows = files.map(f => {
@@ -227,7 +227,7 @@ function renderUploadPreview(errors) {
               ${fxStr}
             </div>
             <div style="text-align:right;margin-left:12px;flex-shrink:0;">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--ok);">${fmtM(h.marginIDR)}</div>
+              <div style="font-family:inherit;font-size:16px;font-weight:700;color:var(--ok);">${fmtM(h.marginIDR)}</div>
               <div style="font-size:10px;color:var(--muted2);">${(h.marginPct||0).toFixed(2)}% &middot; ${h.baseCurrency||'IDR'}</div>
             </div>
           </div>
@@ -240,9 +240,9 @@ function renderUploadPreview(errors) {
 
     // Consolidated footer (only for multi-file groups)
     const consolidatedFooter = isMulti ? `
-      <div style="padding:10px 16px;background:#eaf3ff;display:flex;justify-content:space-between;align-items:center;">
+      <div style="padding:10px 16px;background:var(--s3);display:flex;justify-content:space-between;align-items:center;">
         <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--actual);">Total Konsolidasi</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:800;color:var(--ok);">
+        <div style="font-family:inherit;font-size:17px;font-weight:700;color:var(--ok);">
           ${fmtM(totalMarginIDR)}
           <span style="font-size:12px;color:var(--muted2);margin-left:4px;">${consolidatedPct}%</span>
         </div>
@@ -256,7 +256,7 @@ function renderUploadPreview(errors) {
             <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${accentColor};margin-bottom:4px;">
               ${isMulti ? `🔗 INTERCOMPANY &middot; ${files.length} Subsidiaries` : '📄 Single PS'}
             </div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text);line-height:1.2;">${projectName}</div>
+            <div style="font-family:inherit;font-size:15px;font-weight:700;color:var(--text);line-height:1.2;">${projectName}</div>
             <div style="font-size:11px;color:var(--muted2);margin-top:4px;">
               PO Date: <strong style="color:var(--actual)">${poDate}</strong>
               &rarr; <strong style="color:var(--actual)">${monthLabel}</strong>
@@ -265,7 +265,7 @@ function renderUploadPreview(errors) {
             </div>
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:12px;">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--ok);">${fmtM(totalMarginIDR)}</div>
+            <div style="font-family:inherit;font-size:22px;font-weight:700;color:var(--ok);">${fmtM(totalMarginIDR)}</div>
             <div style="font-size:10px;color:var(--muted2);">${consolidatedPct}% net margin</div>
           </div>
         </div>
