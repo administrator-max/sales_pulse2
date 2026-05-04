@@ -43,9 +43,9 @@ function buildAnalyticsDetail(type) {
       let h = `<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total YTD</div>
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:38px;font-weight:800;color:var(--actual);line-height:1">${fmtN(totalMT)} MT</div>
+            <div style="font-family:inherit;font-size:38px;font-weight:700;color:var(--actual);line-height:1">${fmtN(totalMT)} MT</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;">of ${fmtN(totalBudg)} MT full year budget</div></div>
-          <div style="text-align:right"><div style="font-family:Barlow Condensed,sans-serif;font-size:48px;font-weight:800;line-height:1;color:${pctCol}">${totPct.toFixed(1)}%</div>
+          <div style="text-align:right"><div style="font-family:inherit;font-size:48px;font-weight:700;line-height:1;color:${pctCol}">${totPct.toFixed(1)}%</div>
             <div style="font-size:11px;color:var(--muted)">achievement</div></div>
         </div>
         </div>`;
@@ -58,8 +58,8 @@ function buildAnalyticsDetail(type) {
           
           h+=`<div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${bq.label}</div>
-            <div style="text-align:right"><div style="font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;color:var(--actual)">${fmtN(act)} MT</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${bq.label}</div>
+            <div style="text-align:right"><div style="font-family:inherit;font-size:18px;font-weight:700;color:var(--actual)">${fmtN(act)} MT</div>
               <div style="font-size:10px;color:var(--muted)">Budget: ${fmtN(bgt)} MT</div></div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
@@ -84,7 +84,7 @@ function buildAnalyticsDetail(type) {
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Total YTD</div>
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:36px;font-weight:800;color:var(--ok);line-height:1">${fmt2(totalMargin)} MIDR</div>
+            <div style="font-family:inherit;font-size:36px;font-weight:700;color:var(--ok);line-height:1">${fmt2(totalMargin)} MIDR</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;">Margin dari ${fmtN(totalMT)} MT volume</div>
           </div>
         </div></div>`;
@@ -104,20 +104,20 @@ function buildAnalyticsDetail(type) {
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
             <div style="background:var(--s2);border-radius:8px;padding:10px 12px;">
               <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">MARGIN</div>
-              <div style="font-family:Barlow Condensed,sans-serif;font-size:20px;font-weight:800;color:var(--ok)">${fmt2(p.margin)}</div>
+              <div style="font-family:inherit;font-size:20px;font-weight:700;color:var(--ok)">${fmt2(p.margin)}</div>
             </div>
             <div style="background:var(--s2);border-radius:8px;padding:10px 12px;">
               <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">VOLUME</div>
-              <div style="font-family:Barlow Condensed,sans-serif;font-size:20px;font-weight:800;color:${p.color}">${fmtN(p.mt)}</div>
+              <div style="font-family:inherit;font-size:20px;font-weight:700;color:${p.color}">${fmtN(p.mt)}</div>
             </div>
             <div style="background:var(--s2);border-radius:8px;padding:10px 12px;">
               <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">REVENUE</div>
-              <div style="font-family:Barlow Condensed,sans-serif;font-size:20px;font-weight:800;color:var(--actual)">${fmt2(p.revenue)}</div>
+              <div style="font-family:inherit;font-size:20px;font-weight:700;color:var(--actual)">${fmt2(p.revenue)}</div>
             </div>
           </div>
           <div style="margin-bottom:5px;">
             <div style="height:6px;background:var(--s3);border-radius:99px;overflow:hidden;margin-bottom:6px;">
-              <div style="height:100%;width:${marginW}%;background:linear-gradient(90deg,var(--ok),#059669);border-radius:99px;"></div></div>
+              <div style="height:100%;width:${marginW}%;background:var(--brand-green);border-radius:99px;"></div></div>
             <div style="height:6px;background:var(--s3);border-radius:99px;overflow:hidden;">
               <div style="height:100%;width:${mtW}%;background:${p.color};border-radius:99px;"></div></div>
           </div>
@@ -133,15 +133,15 @@ function buildAnalyticsDetail(type) {
       const sorted = type==='cust-margin'
         ? Object.entries(custMap).sort((a,b)=>b[1].margin-a[1].margin)
         : Object.entries(custMap).filter(([,v])=>v.kg>0).sort((a,b)=>b[1].kg-a[1].kg);
-      const rankColors=['#1e5aa8','#0f7343','#0288d1','#00897b','#1565c0'];
+      const rankColors=['#373896','#2077BD','#0A6A36','#2AB675','#231F20'];
       const maxVal = type==='cust-margin' ? (sorted[0]?.[1].margin||1) : (sorted[0]?.[1].kg||1);
       
       let h=`<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;">
           <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">${type==='cust-margin'?'Ranked by Margin':'Ranked by Qty (MT)'}</div>
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:22px;font-weight:800;color:var(--actual)">${sorted.length} Customers</div></div>
+            <div style="font-family:inherit;font-size:22px;font-weight:700;color:var(--actual)">${sorted.length} Customers</div></div>
           <div style="text-align:right"><div style="font-size:10px;color:var(--muted)">Total Margin YTD</div>
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:18px;font-weight:700;color:var(--ok)">${fmt2(totalMargin)} M</div></div>
+            <div style="font-family:inherit;font-size:18px;font-weight:700;color:var(--ok)">${fmt2(totalMargin)} M</div></div>
         </div></div>`;
       sorted.forEach(([name,data],i)=>{
         const share=(data.margin/totalMargin*100).toFixed(1);
@@ -152,9 +152,9 @@ function buildAnalyticsDetail(type) {
         const sn = name;
         h+=`<div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-family:Barlow Condensed,sans-serif;font-size:32px;font-weight:800;color:${rc};line-height:1;flex-shrink:0;width:28px;">${i+1}</div>
+            <div style="font-family:inherit;font-size:32px;font-weight:700;color:${rc};line-height:1;flex-shrink:0;width:28px;">${i+1}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">${sn}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">${sn}</div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
                 <span style="font-size:11px;color:var(--muted2)">Margin: <strong style="color:var(--ok)">${fmt2(data.margin)} M</strong></span>
                 <span style="font-size:11px;color:var(--muted2)">Share: <strong style="color:${rc}">${share}%</strong></span>
@@ -267,7 +267,7 @@ function renderBudgetForm() {
     return `
       <div style="background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:8px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">${p.label} (MT)</div>
-        <input type="number" id="bgt-qty-${p.key}" value="${val}" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:700;font-size:15px;font-family:'Barlow Condensed',sans-serif;outline:none;">
+        <input type="number" id="bgt-qty-${p.key}" value="${val}" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:700;font-size:15px;font-family:inherit;outline:none;">
       </div>`;
   }).join('');
 }
@@ -302,19 +302,20 @@ function openModal(idx) {
   const marginP=actual!=null&&rev!=null?(actual/rev*100):null;
   const achColor=attPct==null?'var(--muted2)':attPct>=80?'var(--ok)':attPct>=30?'var(--warn)':'var(--over)';
 
-  document.getElementById('modal-title').innerHTML=`${m} <span>2026</span>`;
+  const _yr = (typeof FILTER_YEAR !== 'undefined') ? FILTER_YEAR : new Date().getFullYear();
+  document.getElementById('modal-title').innerHTML=`${m} <span>${_yr}</span>`;
   
   const psSection = document.getElementById('modal-ps-section');
   const psInner = document.getElementById('modal-ps-inner');
   
   if(isPS) {
     psSection.style.display = 'block';
-    const monthLabel=`${m} 2026`;
+    const monthLabel=`${m} ${_yr}`;
     const totalMargin = chains.reduce((a,c)=>a+c.margin,0);
     const totalRev = chains.reduce((a,c)=>a+c.revenue,0);
     const totalPct = totalRev > 0 ? (totalMargin/totalRev*100).toFixed(2) : 0;
     
-    const colors=['#1e5aa8','#0f7343','#0288d1','#00897b','#1565c0'];
+    const colors=['#373896','#2077BD','#0A6A36','#2AB675','#231F20'];
     let html=`<div class="modal-ps-title">📋 PS Consolidated · ${monthLabel} · ${chains.length} Proyek</div>`;
     chains.forEach((c, i) => {
       const col  = colors[i%colors.length];
@@ -332,18 +333,18 @@ function openModal(idx) {
               <span style="font-size:11px;font-weight:700;color:var(--ok);">IDR ${s.marginMIDR.toFixed(2)} M</span>
               <button onclick="confirmDeletePS('${safePsNum}','${safePsName}',${idx})"
                 title="Hapus ${s.ps}"
-                style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;"
-                onmouseover="this.style.background='rgba(244,63,94,0.22)'"
-                onmouseout="this.style.background='rgba(244,63,94,0.1)'">
+                style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:var(--s3);border:1px solid var(--border);color:var(--text);cursor:pointer;"
+                onmouseover="this.style.background='var(--border)'"
+                onmouseout="this.style.background='var(--s3)'">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
               </button>
             </div>`;
           }).join('')
         : `<button onclick="confirmDeletePS('${c.ps.replace(/'/g,"\\'")}','${c.name.replace(/'/g,"\\'")}',${idx})"
              title="Hapus PS ini"
-             style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.3);color:var(--over);cursor:pointer;flex-shrink:0;transition:all 0.15s;"
-             onmouseover="this.style.background='rgba(244,63,94,0.22)'"
-             onmouseout="this.style.background='rgba(244,63,94,0.1)'">
+             style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--s3);border:1px solid var(--border);color:var(--text);cursor:pointer;flex-shrink:0;transition:all 0.15s;"
+             onmouseover="this.style.background='var(--border)'"
+             onmouseout="this.style.background='var(--s3)'">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
            </button>`;
 
@@ -352,7 +353,7 @@ function openModal(idx) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${col}">${c.name}${isMulti ? ' · 🔗 ' + subs.length + ' Sub' : ' · ' + c.ps}</div>
             <div style="display:flex;align-items:center;gap:8px;">
-              <div style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct.toFixed(2)}%</div>
+              <div style="font-family:inherit;font-size:14px;font-weight:700;color:var(--ok)">IDR ${c.margin.toFixed(2)} M · ${c.pct.toFixed(2)}%</div>
               ${!isMulti ? deleteButtons : ''}
             </div>
           </div>
@@ -363,7 +364,7 @@ function openModal(idx) {
           ${isMulti ? '<div style="margin-top:6px;">' + deleteButtons + '</div>' : ''}
         </div>`;
     });
-    html+=`<div style="background:#eaf3ff;border-radius:6px;padding:10px 12px;"><div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--actual);margin-bottom:8px;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--actual)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--ok)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;
+    html+=`<div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;"><div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--brand-blue);margin-bottom:10px;font-weight:700;">Total ${monthLabel}</div><div class="modal-ps-grid"><div class="modal-ps-item"><div class="modal-ps-label">Total Revenue</div><div class="modal-ps-val" style="color:var(--brand-blue)">IDR ${totalRev.toLocaleString('id-ID',{maximumFractionDigits:2})} M</div><div class="modal-ps-sub">${chains.length} proyek</div></div><div class="modal-ps-item"><div class="modal-ps-label">Total Net Margin</div><div class="modal-ps-val" style="color:var(--brand-green-dark)">IDR ${totalMargin.toFixed(2)} M</div><div class="modal-ps-sub">${totalPct}% of revenue</div></div></div></div>`;
     psInner.innerHTML=html;
   } else {
     psSection.style.display = 'none';
@@ -373,7 +374,7 @@ function openModal(idx) {
   const totalMarginPctVal = isPS && chains.reduce((a,c)=>a+c.revenue,0) > 0 ? (chains.reduce((a,c)=>a+c.margin,0) / chains.reduce((a,c)=>a+c.revenue,0) * 100).toFixed(2) + '%' : '—';
   const mPctVal = marginP!=null?marginP.toFixed(2)+'%': (isPS?(totalMarginPctVal):'—');
   document.getElementById('modal-kpis').innerHTML=`
-    <div class="modal-kpi"><div class="modal-kpi-l">Budget Margin</div><div class="modal-kpi-v" style="color:var(--budget)">${fmt(budget,2)}</div><div class="modal-kpi-s">MB 2026</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-l">Budget Margin</div><div class="modal-kpi-v" style="color:var(--budget)">${fmt(budget,2)}</div><div class="modal-kpi-s">MB ${_yr}</div></div>
     <div class="modal-kpi"><div class="modal-kpi-l">Actual Margin${isPS?' (Consol.)':''}</div><div class="modal-kpi-v" style="color:${actual!=null?'var(--actual)':'var(--muted)'}">${actual!=null?fmt(actual,2):'—'}</div><div class="modal-kpi-s">${actual!=null?(isPS?'PS consolidated':'reported'):'Belum dientry'}</div></div>
     <div class="modal-kpi"><div class="modal-kpi-l">${isPS?'Margin %':'Plan Margin'}</div><div class="modal-kpi-v" style="color:${isPS?'var(--ok)':plan!=null?'var(--plan)':'var(--muted)'}">${isPS?mPctVal:plan!=null?fmt(plan,2):'—'}</div><div class="modal-kpi-s">${isPS?'of end sales':'pipeline'}</div></div>
   `;
@@ -400,6 +401,7 @@ function printMonthReport() {
   const chains = PS_CHAINS[mKey] || [];
   if (chains.length === 0) return;
 
+  const yr = (typeof FILTER_YEAR !== 'undefined') ? FILTER_YEAR : new Date().getFullYear();
   const monthName = MONTHS[idx];
   const budget    = BUDGET.margin[idx];
   const actual    = ACTUAL.margin[idx];
@@ -412,9 +414,9 @@ function printMonthReport() {
   const qtyData  = QTY_DATA[mKey] || [];
 
   const achLabelText = attPct == null ? '—' : attPct >= 80 ? 'ON TRACK' : attPct >= 30 ? 'BELOW TARGET' : 'CRITICAL';
-  const achBgColor   = attPct == null ? '#64748b' : attPct >= 80 ? '#16a34a' : attPct >= 30 ? '#d97706' : '#dc2626';
+  const achBgColor   = attPct == null ? '#6D6E71' : attPct >= 80 ? '#0A6A36' : attPct >= 30 ? '#2077BD' : '#231F20';
   const gapText  = gap == null ? '—' : (gap >= 0 ? '+' : '') + gap.toFixed(2);
-  const gapColor = gap == null ? '#64748b' : gap >= 0 ? '#16a34a' : '#dc2626';
+  const gapColor = gap == null ? '#6D6E71' : gap >= 0 ? '#0A6A36' : '#231F20';
   const now = new Date();
   const printDate = now.toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric' });
 
@@ -434,7 +436,7 @@ function printMonthReport() {
     const mtOnly = mtMatch ? mtMatch[1] : totalWeight;
     if(mtMatch) totalMT += parseInt(mtMatch[1].replace(/,/g,''));
 
-    const pctColor = c.pct >= 18 ? '#16a34a' : c.pct >= 12 ? '#d97706' : '#dc2626';
+    const pctColor = c.pct >= 18 ? '#0A6A36' : c.pct >= 12 ? '#2077BD' : '#231F20';
     projectRowsHtml +=
       '<tr>' +
         '<td class="td-project">' +
@@ -463,7 +465,7 @@ function printMonthReport() {
   const totalRowHtml =
     '<tr class="total-row">' +
       '<td class="td-project">' +
-        '<div class="total-label">TOTAL ' + monthName.toUpperCase() + ' 2026</div>' +
+        '<div class="total-label">TOTAL ' + monthName.toUpperCase() + ' ' + yr + '</div>' +
         '<div style="font-size:9px;color:#94a3b8;margin-top:3px;">' + chains.length + ' proyek konsolidasi</div>' +
       '</td>' +
       '<td class="td-num">' +
@@ -489,21 +491,21 @@ function printMonthReport() {
   const html = '<!DOCTYPE html>' +
     '<html lang="id"><head>' +
     '<meta charset="UTF-8">' +
-    '<title>Laporan Margin ' + monthName + ' 2026</title>' +
+    '<title>Laporan Margin ' + monthName + ' ' + yr + '</title>' +
     '<style>' +
     '@page{size:A4;margin:16mm 14mm 16mm 14mm;}' +
     '*{margin:0;padding:0;box-sizing:border-box;}' +
     'body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff;}' +
-    '.rh{border-bottom:3px solid #1a4480;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;}' +
+    '.rh{border-bottom:3px solid #373896;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;}' +
     '.rtitle{font-size:20px;font-weight:700;color:#1a2f4a;letter-spacing:-0.5px;}' +
-    '.rtitle span{color:#1e5aa8;}' +
+    '.rtitle span{color:#2077BD;}' +
     '.rsub{font-size:10px;color:#64748b;margin-top:3px;}' +
     '.rmeta{text-align:right;font-size:10px;color:#64748b;line-height:1.9;}' +
     '.rmeta strong{color:#0f172a;}' +
     '.section-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#94a3b8;margin-bottom:7px;margin-top:14px;}' +
     'table{width:100%;border-collapse:collapse;}' +
-    'thead tr{background:#1a4480;}' +
-    'thead th{color:#fff;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:9px 10px;text-align:left;font-weight:600;}' +
+    'thead tr{background:#373896;}' +
+    'thead th{color:#fff;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;padding:9px 10px;text-align:left;font-weight:700;}' +
     'thead th.r{text-align:right;}' +
     'thead th.c{text-align:center;}' +
     'tbody tr{border-bottom:1px solid #e2e8f0;}' +
@@ -512,25 +514,25 @@ function printMonthReport() {
     '.td-num{padding:10px;text-align:right;vertical-align:top;}' +
     '.td-pct{padding:10px;text-align:center;vertical-align:top;width:9%;}' +
     '.proj-name{font-size:12px;font-weight:700;color:#0f172a;margin-bottom:2px;}' +
-    '.proj-ps{font-size:9px;color:#1e5aa8;margin-bottom:2px;}' +
+    '.proj-ps{font-size:9px;color:#2077BD;margin-bottom:2px;}' +
     '.proj-customer{font-size:9px;color:#64748b;}' +
-    '.num-main{font-size:11px;font-weight:600;color:#1e293b;}' +
+    '.num-main{font-size:11px;font-weight:700;color:#1e293b;}' +
     '.num-sub{font-size:9px;color:#94a3b8;margin-top:2px;}' +
-    '.total-row{background:#1a4480!important;}' +
+    '.total-row{background:#373896!important;}' +
     '.total-row td{padding:11px 10px;border-bottom:none!important;}' +
     '.total-label{font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;}' +
     '.total-val{font-size:13px;font-weight:700;color:#ffffff;text-align:right;}' +
     '.total-val-sub{font-size:9px;color:#64748b;text-align:right;margin-top:2px;}' +
-    '.total-pct{font-size:13px;font-weight:700;color:#a8d8ff;text-align:center;}' +
-    '.ach{margin-top:20px;border:2px solid #1a4480;border-radius:8px;overflow:hidden;}' +
-    '.ach-hdr{background:#1a4480;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}' +
+    '.total-pct{font-size:13px;font-weight:700;color:#D1E5F4;text-align:center;}' +
+    '.ach{margin-top:20px;border:2px solid #373896;border-radius:8px;overflow:hidden;}' +
+    '.ach-hdr{background:#373896;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}' +
     '.ach-hdr-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#94a3b8;}' +
     '.ach-hdr-status{font-size:13px;font-weight:700;color:' + achBgColor + ';}' +
     '.ach-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:none;}' +
     '.ach-cell{padding:14px 16px;border-right:1px solid #e2e8f0;}' +
     '.ach-cell:last-child{border-right:none;}' +
     '.ach-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;margin-bottom:7px;}' +
-    '.ach-big{font-size:32px;font-weight:800;line-height:1;letter-spacing:-1.5px;color:' + achBgColor + ';}' +
+    '.ach-big{font-size:32px;font-weight:700;line-height:1;letter-spacing:-1.5px;color:' + achBgColor + ';}' +
     '.ach-val{font-size:22px;font-weight:700;line-height:1;letter-spacing:-0.5px;color:#0f172a;}' +
     '.ach-gap{font-size:22px;font-weight:700;color:' + gapColor + ';}' +
     '.ach-sub{font-size:10px;color:#64748b;margin-top:5px;}' +
@@ -544,12 +546,12 @@ function printMonthReport() {
     '<div class="rh">' +
       '<div>' +
         '<div style="font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Group GP &bull; Laporan Margin Internal</div>' +
-        '<div class="rtitle">LAPORAN MARGIN <span>' + monthName.toUpperCase() + ' 2026</span></div>' +
+        '<div class="rtitle">LAPORAN MARGIN <span>' + monthName.toUpperCase() + ' ' + yr + '</span></div>' +
         '<div class="rsub">PS Consolidated Net Margin &bull; ' + chains.length + ' Proyek &bull; Setelah Semua Biaya</div>' +
       '</div>' +
       '<div class="rmeta">' +
         '<div>Dicetak: <strong>' + printDate + '</strong></div>' +
-        '<div>Bulan: <strong>' + monthName + ' 2026</strong></div>' +
+        '<div>Bulan: <strong>' + monthName + ' ' + yr + '</strong></div>' +
         '<div>Jumlah Proyek: <strong>' + chains.length + '</strong></div>' +
       '</div>' +
     '</div>' +
@@ -569,14 +571,14 @@ function printMonthReport() {
     '</table>' +
     '<div class="ach">' +
       '<div class="ach-hdr">' +
-        '<div class="ach-hdr-lbl">Pencapaian vs Target Anggaran &mdash; ' + monthName + ' 2026</div>' +
+        '<div class="ach-hdr-lbl">Pencapaian vs Target Anggaran &mdash; ' + monthName + ' ' + yr + '</div>' +
         '<div class="ach-hdr-status">' + achLabelText + '</div>' +
       '</div>' +
       '<div class="ach-grid">' +
         '<div class="ach-cell">' +
           '<div class="ach-lbl">Pencapaian</div>' +
           '<div class="ach-big">' + attPctDisplay + '</div>' +
-          '<div class="ach-sub">vs Budget ' + monthName + ' 2026</div>' +
+          '<div class="ach-sub">vs Budget ' + monthName + ' ' + yr + '</div>' +
         '</div>' +
         '<div class="ach-cell">' +
           '<div class="ach-lbl">Actual Margin</div>' +
@@ -586,7 +588,7 @@ function printMonthReport() {
         '<div class="ach-cell">' +
           '<div class="ach-lbl">Budget Margin</div>' +
           '<div class="ach-val">' + budgetDisplay + '</div>' +
-          '<div class="ach-sub">MB 2026 &bull; ' + monthName + '</div>' +
+          '<div class="ach-sub">MB ' + yr + ' &bull; ' + monthName + '</div>' +
         '</div>' +
         '<div class="ach-cell">' +
           '<div class="ach-lbl">Gap vs Budget</div>' +
@@ -600,7 +602,7 @@ function printMonthReport() {
       '</div>' +
     '</div>' +
     '<div class="rfooter">' +
-      '<span>Sales Pulse 2026 &bull; Group GP &bull; Dokumen Internal &bull; RAHASIA</span>' +
+      '<span>Sales Pulse ' + yr + ' &bull; Group GP &bull; Dokumen Internal &bull; RAHASIA</span>' +
       '<span>Dicetak: ' + printDate + ' &bull; Data: PS Consolidated Net Margin After All Costs</span>' +
     '</div>' +
     '</body></html>';
@@ -693,7 +695,7 @@ function spBuildTabs(idx){
         const pct = BUDGET.margin[idx] > 0 && !isNaN(mv) ? ' '+((mv/BUDGET.margin[idx])*100).toFixed(0)+'%' : '';
         return `<button onclick="spSelectRev(${i})"
           style="flex-shrink:0;padding:7px 12px;border:none;background:${isActive?'rgba(56,189,248,0.2)':'transparent'};
-          color:${isActive?'#38bdf8':'var(--muted2)'};font-family:Barlow Condensed,sans-serif;font-size:12px;font-weight:700;
+          color:${isActive?'var(--brand-blue)':'var(--muted2)'};font-family:inherit;font-size:12px;font-weight:700;
           cursor:pointer;border-right:1px solid var(--border2);letter-spacing:0.3px;transition:all 0.15s;white-space:nowrap;">
           ${label}<span style="font-size:10px;opacity:0.6;">${pct}</span>
         </button>`;
@@ -825,11 +827,11 @@ function spBuildHistory(idx){
   const totalPct = budget > 0 ? (t.margin/budget*100).toFixed(1)+'%' : '—';
   let html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">'
     + '<thead><tr style="border-bottom:1px solid var(--border2);">'
-    + '<th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:600;">Deal</th>'
-    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:600;">Margin</th>'
-    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:600;">vs Bgt</th>'
-    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:600;">Revenue</th>'
-    + '<th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:600;">Notes</th>'
+    + '<th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:700;">Deal</th>'
+    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:700;">Margin</th>'
+    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:700;">vs Bgt</th>'
+    + '<th style="text-align:right;padding:4px 8px;color:var(--muted);font-weight:700;">Revenue</th>'
+    + '<th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:700;">Notes</th>'
     + '</tr></thead><tbody>';
   revs.forEach((r,i) => {
     const mv   = parseFloat(r.margin);
@@ -838,8 +840,8 @@ function spBuildHistory(idx){
     const pcColor = pct==null?'var(--muted)':pct>=100?'var(--ok)':pct>=60?'var(--warn)':'var(--over)';
     const isActive = i === SP_ACTIVE_REV[idx];
     html += '<tr style="border-bottom:1px solid var(--border);background:'+(isActive?'rgba(56,189,248,0.05)':'transparent')+';cursor:pointer;" onclick="spSelectRev('+i+')">'
-      + '<td style="padding:5px 8px;color:'+(isActive?'#38bdf8':'var(--text)')+';font-weight:'+(isActive?700:400)+';">'+(r.name||spRevLabel(i))+(isActive?' ●':'')+'</td>'
-      + '<td style="padding:5px 8px;text-align:right;color:#fff;font-family:Barlow Condensed,sans-serif;">'+(!isNaN(mv)?mv.toLocaleString('id-ID',{minimumFractionDigits:2}):'—')+'</td>'
+      + '<td style="padding:5px 8px;color:'+(isActive?'var(--brand-blue)':'var(--text)')+';font-weight:'+(isActive?700:400)+';">'+(r.name||spRevLabel(i))+(isActive?' ●':'')+'</td>'
+      + '<td style="padding:5px 8px;text-align:right;color:var(--text);font-family:inherit;font-weight:700;">'+(!isNaN(mv)?mv.toLocaleString('id-ID',{minimumFractionDigits:2}):'—')+'</td>'
       + '<td style="padding:5px 8px;text-align:right;font-weight:700;color:'+pcColor+';">'+pc+'</td>'
       + '<td style="padding:5px 8px;text-align:right;color:var(--muted2);">'+(r.revenue||'—')+'</td>'
       + '<td style="padding:5px 8px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.notes||'')+'</td>'
@@ -848,8 +850,8 @@ function spBuildHistory(idx){
   const tpctColor = t.margin > 0 && budget > 0 ? ((t.margin/budget*100)>=100?'var(--ok)':(t.margin/budget*100)>=60?'var(--warn)':'var(--over)') : 'var(--muted)';
   html += '<tr style="border-top:1px solid var(--border2);background:rgba(255,255,255,0.03);">'
     + '<td style="padding:5px 8px;color:var(--muted2);font-weight:700;">TOTAL ('+revs.length+' deals)</td>'
-    + '<td style="padding:5px 8px;text-align:right;color:#38bdf8;font-family:Barlow Condensed,sans-serif;font-weight:800;">'+t.margin.toLocaleString('id-ID',{minimumFractionDigits:2})+'</td>'
-    + '<td style="padding:5px 8px;text-align:right;font-weight:800;color:'+tpctColor+';">'+totalPct+'</td>'
+    + '<td style="padding:5px 8px;text-align:right;color:var(--brand-blue);font-family:inherit;font-weight:700;">'+t.margin.toLocaleString('id-ID',{minimumFractionDigits:2})+'</td>'
+    + '<td style="padding:5px 8px;text-align:right;font-weight:700;color:'+tpctColor+';">'+totalPct+'</td>'
     + '<td style="padding:5px 8px;text-align:right;color:var(--muted2);">'+(t.revenue>0?t.revenue.toLocaleString('id-ID',{minimumFractionDigits:2}):'—')+'</td>'
     + '<td></td></tr>';
   html += '</tbody></table></div>';
@@ -923,7 +925,8 @@ function renderQtyBreakdown() {
   const hasActual   = totalActual > 0;
   const achColor    = totalPct >= 100 ? 'var(--ok)' : totalPct >= 60 ? 'var(--warn)' : 'var(--over)';
 
-  document.getElementById('qtybd-month-label').textContent = MONTHS[mi] + ' 2026  —  QTY Breakdown';
+  const _qyr = (typeof FILTER_YEAR !== 'undefined') ? FILTER_YEAR : new Date().getFullYear();
+  document.getElementById('qtybd-month-label').textContent = MONTHS[mi] + ' ' + _qyr + '  —  QTY Breakdown';
   document.getElementById('qtybd-subtitle').textContent    = 'Actual vs Budget per Produk';
   document.getElementById('qtybd-prev').disabled = mi === 0;
   document.getElementById('qtybd-next').disabled = mi === 11;
@@ -931,17 +934,17 @@ function renderQtyBreakdown() {
   const sumEl = document.getElementById('qtybd-summary');
   const fmtMT = v => Math.round(v).toLocaleString('id-ID') + ' MT';
   sumEl.innerHTML = `
-    <div style="flex:1;padding:14px 20px;border-right:1px solid var(--border2);">
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Actual Total</div>
-      <div style="font-family:Barlow Condensed,sans-serif;font-size:24px;font-weight:800;color:${hasActual?'#fff':'var(--muted)'};">${fmtMT(totalActual)}</div>
+    <div style="flex:1;padding:14px 20px;border-right:1px solid var(--border);">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:700;">Actual Total</div>
+      <div style="font-family:inherit;font-size:22px;font-weight:700;color:${hasActual?'var(--brand-blue)':'var(--muted)'};">${fmtMT(totalActual)}</div>
     </div>
-    <div style="flex:1;padding:14px 20px;border-right:1px solid var(--border2);">
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Budget Total</div>
-      <div style="font-family:Barlow Condensed,sans-serif;font-size:24px;font-weight:800;color:rgba(255,255,255,0.4);">${fmtMT(totalBudget)}</div>
+    <div style="flex:1;padding:14px 20px;border-right:1px solid var(--border);">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:700;">Budget Total</div>
+      <div style="font-family:inherit;font-size:22px;font-weight:700;color:var(--muted);">${fmtMT(totalBudget)}</div>
     </div>
     <div style="flex:1;padding:14px 20px;">
-      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Achievement</div>
-      <div style="font-family:Barlow Condensed,sans-serif;font-size:24px;font-weight:800;color:${hasActual?achColor:'var(--over)'};">${totalBudget > 0 ? totalPct.toFixed(1)+'%' : '—'}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:700;">Achievement</div>
+      <div style="font-family:inherit;font-size:22px;font-weight:700;color:${hasActual?achColor:'var(--muted)'};">${totalBudget > 0 ? totalPct.toFixed(1)+'%' : '—'}</div>
     </div>`;
 
   const body = document.getElementById('qtybd-body');
@@ -970,11 +973,11 @@ function renderQtyBreakdown() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="width:10px;height:10px;border-radius:2px;background:${cat.color};display:inline-block;flex-shrink:0;"></span>
-          <span style="font-size:13px;font-weight:600;color:var(--text);">${cat.label}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--text);">${cat.label}</span>
         </div>
         <div style="display:flex;align-items:baseline;gap:10px;">
-          <span style="font-size:11px;color:${gapColor};font-weight:600;">${gapStr}</span>
-          <span style="font-family:Barlow Condensed,sans-serif;font-size:16px;font-weight:700;color:${rowColor};">${fmtMT(catAct)}</span>
+          <span style="font-size:11px;color:${gapColor};font-weight:700;">${gapStr}</span>
+          <span style="font-family:inherit;font-size:16px;font-weight:700;color:${rowColor};">${fmtMT(catAct)}</span>
           <span style="font-size:11px;color:rgba(255,255,255,0.25);">/ ${fmtMT(catBgt)}</span>
         </div>
       </div>
