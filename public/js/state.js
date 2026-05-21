@@ -3,30 +3,24 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const NOW_MONTH = new Date().getMonth();
 
-const QTY_PROD_LABELS = [
-  { key:'sheetPile', label:'Sheet Pile' },
-  { key:'weldedPipe', label:'Pipe' },
-  { key:'erwPipe', label:'ERW Pipe' },
-  { key:'gl', label:'GL' },
-  { key:'gi', label:'GI' },
-  { key:'ppgl', label:'PPGL' }
+const PRODUCT_COLORS = [
+  '#373896', '#2077BD', '#0A6A36', '#2AB675', '#6D6E71', '#231F20',
+  '#7C3AED', '#D97706', '#0F766E', '#BE123C', '#4B5563', '#2563EB'
 ];
 
-// Brand palette only: dark blue, light blue, dark green, light green, dark text, gray
-const PROD_CATS = [
-  { key:'sheetPile',  label:'Sheet Pile', color:'#373896', rgba:'rgba(55,56,150,0.90)',  match: n => n.includes('mlion')||n.includes('sheet pile') },
-  { key:'weldedPipe', label:'Pipe',       color:'#2077BD', rgba:'rgba(32,119,189,0.90)', match: n => n.includes('youfa')||n.includes('welded')||(n.includes('pipe')&&!n.includes('erw'))||n.includes('seamless') },
-  { key:'erwPipe',    label:'ERW Pipe',   color:'#0A6A36', rgba:'rgba(10,106,54,0.90)',  match: n => n.includes('erw') },
-  { key:'gl',         label:'GL',         color:'#2AB675', rgba:'rgba(42,182,117,0.90)', match: n => n.includes('gl')||n.includes('galvalume') },
-  { key:'gi',         label:'GI',         color:'#6D6E71', rgba:'rgba(109,110,113,0.90)',match: n => n.includes('gi ')||n.includes('galvanized')||n.includes(' gi') },
-  { key:'ppgl',       label:'PPGL',       color:'#231F20', rgba:'rgba(35,31,32,0.90)',   match: n => n.includes('sssc')||n.includes('ppgl')||n.includes('coil') },
-];
+const LEGACY_PRODUCT_KEY_TO_CANONICAL = {
+  sheetPile: 'Sheet Pile',
+  weldedPipe: 'ERW Pipe',
+  erwPipe: 'ERW Pipe',
+  gl: 'Galvalume',
+  gi: 'Galvanized',
+  ppgl: 'PPGL'
+};
 
 // Dynamic State (Fetched exclusively from DB)
 let BUDGET = {
   margin: Array(12).fill(0),
   revenue: Array(12).fill(0),
-  qty: { sheetPile: Array(12).fill(0), weldedPipe: Array(12).fill(0), erwPipe: Array(12).fill(0), gl: Array(12).fill(0), gi: Array(12).fill(0), ppgl: Array(12).fill(0) },
   products: {}   // canonical_product → { volume:[12], revenue:[12], margin:[12] }
 };
 let ACTUAL = { margin: Array(12).fill(null), plan: Array(12).fill(null), revenue: Array(12).fill(null), notes: Array(12).fill('') };
@@ -148,15 +142,13 @@ async function initApp() {
          if (!QTY_DATA[m]) QTY_DATA[m] = [];
       });
 
-      // Populate chart product dropdown — union of products in BUDGET + ACTUAL
+      // Populate chart product dropdown from canonical product pipeline.
       const dd = document.getElementById('chart-product-filter');
       if (dd) {
-        const products = [...new Set([
-          ...Object.keys(BUDGET.products || {}),
-          ...Object.keys(ACTUAL_PRODUCTS || {}),
-        ])].sort();
+        const products = getCanonicalProductNames();
         dd.innerHTML = '<option value="__all__">Semua Produk (aggregate)</option>'
           + products.map(p => `<option value="${p}">${p}</option>`).join('');
+        if (CHART_PRODUCT !== '__all__' && !products.includes(CHART_PRODUCT)) CHART_PRODUCT = '__all__';
         dd.value = CHART_PRODUCT;
       }
 
@@ -184,6 +176,15 @@ async function persist() {
 const fmt = (v, d=2) => v == null ? '—' : Number(v).toLocaleString('id-ID', {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtP = v => v == null ? '—' : v.toFixed(2) + '%';
 const sum = arr => arr.filter(v => v != null).reduce((a,b)=>a+b,0);
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
 
 function showToast(msg, isErr=false){
   const t = document.getElementById('toast');
@@ -194,53 +195,164 @@ function showToast(msg, isErr=false){
 }
 
 function weightToMT(tw) { 
-  const numStr = (tw || '').split(' ')[0].replace(/[^0-9]/g, '');
-  return (parseInt(numStr) || 0) / 1000; 
+  const kgPart = String(tw || '').split('(')[0].replace(/kg/i, '');
+  return parseLocaleNumber(kgPart) / 1000;
+}
+
+function parseLocaleNumber(raw) {
+  if (raw == null || raw === '') return 0;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+
+  let s = String(raw).trim().replace(/\s/g, '');
+  const match = s.match(/-?[\d.,]+/);
+  if (!match) return 0;
+  s = match[0];
+
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+  if (hasComma && hasDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    const parts = s.split(',');
+    s = parts.length === 2 && parts[1].length <= 3
+      ? parts[0] + '.' + parts[1]
+      : s.replace(/,/g, '');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    if (parts.length > 2) {
+      s = parts.join('');
+    } else {
+      s = parts[1].length === 3 && parts[0].length <= 3
+        ? parts.join('')
+        : s;
+    }
+  }
+
+  const n = parseFloat(s.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getActiveMonthIndices() {
+  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+  return fm === -1 ? Array.from({ length: 12 }, (_, i) => i) : [fm];
+}
+
+function getMetricValue(source, productName, metric, monthIdx) {
+  return toNum(source?.[productName]?.[metric]?.[monthIdx]);
+}
+
+function sumProductMetric(source, productName, metric, indices) {
+  return indices.reduce((s, i) => s + getMetricValue(source, productName, metric, i), 0);
+}
+
+function getPlanQtyValue(qty, productName) {
+  if (!qty) return 0;
+  const direct = parseFloat(qty[productName]);
+  if (Number.isFinite(direct)) return direct;
+  return Object.entries(LEGACY_PRODUCT_KEY_TO_CANONICAL)
+    .filter(([, canonical]) => canonical === productName)
+    .reduce((s, [legacyKey]) => s + (parseFloat(qty[legacyKey]) || 0), 0);
+}
+
+function getCanonicalProductNames(options = {}) {
+  const { includeEmpty = false } = options;
+  const names = [];
+  const seen = new Set();
+  const add = (name) => {
+    const label = String(name || '').trim();
+    if (!label || seen.has(label)) return;
+    seen.add(label);
+    names.push(label);
+  };
+
+  Object.keys(BUDGET.products || {}).forEach(add);
+  Object.keys(ACTUAL_PRODUCTS || {}).forEach(add);
+  PLAN_REVISIONS.forEach(revs => (revs || []).forEach(rev => {
+    Object.keys(rev.qty || {}).forEach(key => add(LEGACY_PRODUCT_KEY_TO_CANONICAL[key] || key));
+  }));
+  Object.values(QTY_DATA || {}).forEach(projects => (projects || []).forEach(p => add(p.product)));
+
+  if (includeEmpty) return names;
+
+  return names.filter(product => {
+    const hasBudget = ['volume', 'revenue', 'margin']
+      .some(metric => (BUDGET.products?.[product]?.[metric] || []).some(v => toNum(v) !== 0));
+    const hasActual = ['volume', 'revenue', 'margin']
+      .some(metric => (ACTUAL_PRODUCTS?.[product]?.[metric] || []).some(v => toNum(v) !== 0));
+    const hasPlan = PLAN_REVISIONS.some(revs => (revs || []).some(rev => getPlanQtyValue(rev.qty, product) > 0));
+    return hasBudget || hasActual || hasPlan;
+  });
+}
+
+function getProductColor(productName, fallbackIndex = 0) {
+  const names = getCanonicalProductNames({ includeEmpty: true });
+  const idx = names.indexOf(productName);
+  const colorIndex = idx >= 0 ? idx : fallbackIndex;
+  return PRODUCT_COLORS[((colorIndex % PRODUCT_COLORS.length) + PRODUCT_COLORS.length) % PRODUCT_COLORS.length];
+}
+
+function getProductRgba(productName, fallbackIndex = 0, alpha = 0.90) {
+  const hex = getProductColor(productName, fallbackIndex).replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function getActualProductVolume(productName, monthIdx) {
+  if (ACTUAL_PRODUCTS?.[productName]) {
+    return getMetricValue(ACTUAL_PRODUCTS, productName, 'volume', monthIdx);
+  }
+  const mk = MONTH_KEYS[monthIdx];
+  return (QTY_DATA[mk] || [])
+    .filter(project => project.product === productName)
+    .reduce((s, project) => s + weightToMT(project.totalWeight), 0);
+}
+
+function productDomId(productName) {
+  return String(productName || 'product').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'product';
 }
 
 function getBudgetQtyMonthly() {
   const arr = Array(12).fill(0);
-  Object.values(BUDGET.qty).forEach(prodArr => prodArr.forEach((v, i) => arr[i] += (parseFloat(v)||0)));
+  Object.values(BUDGET.products || {}).forEach(prod => (prod.volume || []).forEach((v, i) => arr[i] += toNum(v)));
   return arr;
 }
 
 function getPlanQtyByProduct(){
   const result = {};
-  QTY_PROD_LABELS.forEach(p => {
-    result[p.key] = Array(12).fill(0);
+  getCanonicalProductNames().forEach(product => {
+    result[product] = Array(12).fill(0);
     for(let i=0;i<12;i++){
-      result[p.key][i] = (PLAN_REVISIONS[i]||[]).reduce((s,r)=>s+(parseFloat((r.qty||{})[p.key])||0),0);
+      result[product][i] = (PLAN_REVISIONS[i]||[]).reduce((s,r)=>s+getPlanQtyValue(r.qty, product),0);
     }
   });
   return result;
 }
 
 function getBudgetQty() {
-    const fm  = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
-    const res = {};
-    PROD_CATS.forEach(c => {
-        const arr = BUDGET.qty[c.key] || [];
-        const budgetMT = fm === -1
-          ? arr.reduce((a,b) => a+b, 0)        // All months
-          : (arr[fm] || 0);                     // Specific month
-        res[c.key] = { label: c.label, color: c.color, budgetMT };
-    });
-    return res;
+  const indices = getActiveMonthIndices();
+  const res = {};
+  getCanonicalProductNames().forEach((product, idx) => {
+    res[product] = {
+      label: product,
+      color: getProductColor(product, idx),
+      budgetMT: sumProductMetric(BUDGET.products || {}, product, 'volume', indices)
+    };
+  });
+  return res;
 }
 
 function getActualQtyMT() {
-  let res = {};
-  PROD_CATS.forEach(c => res[c.key] = 0);
-  // Gunakan getActiveMonthKeys jika tersedia (dari ui.js), fallback ke semua bulan
-  const keys = (typeof getActiveMonthKeys === 'function') ? getActiveMonthKeys() : MONTH_KEYS;
-  keys.forEach(mk => {
-      (QTY_DATA[mk] || []).forEach(p => {
-          const mt = weightToMT(p.totalWeight);
-          const match = p.category
-            ? PROD_CATS.find(c => c.key === p.category)
-            : PROD_CATS.find(c => c.match(p.name.toLowerCase()));
-          if(match) res[match.key] += mt;
-      });
+  const indices = getActiveMonthIndices();
+  const res = {};
+  getCanonicalProductNames().forEach(product => {
+    res[product] = indices.reduce((s, i) => s + getActualProductVolume(product, i), 0);
   });
   return res;
 }

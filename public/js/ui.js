@@ -17,25 +17,24 @@ function buildChart() {
     return _buildChartForProduct(cp, fm, activeIndices, activeLabels);
   }
 
-  const budgetFiltered = activeIndices.map(i => getBudgetQtyMonthly()[i]);
+  const products = getCanonicalProductNames();
+  const budgetFiltered = activeIndices.map(i =>
+    products.reduce((s, product) => s + getMetricValue(BUDGET.products || {}, product, 'volume', i), 0)
+  );
 
-  // ── Build catData & planData hanya untuk bulan aktif ───────────────────────
+  // ── Build productData & planData hanya untuk bulan aktif ───────────────────
   const planQty = getPlanQtyByProduct();
 
-  const catData = PROD_CATS.map(cat =>
+  const productData = products.map(product =>
     activeIndices.map(i => {
-      const mk    = MONTH_KEYS[i];
-      const projs = QTY_DATA[mk] || [];
-      const mt    = projs
-        .filter(p => p.category ? p.category === cat.key : cat.match(p.name.toLowerCase()))
-        .reduce((s, p) => s + weightToMT(p.totalWeight), 0);
+      const mt = getActualProductVolume(product, i);
       return mt > 0 ? mt : null;
     })
   );
 
-  const catPlanData = PROD_CATS.map(cat =>
+  const productPlanData = products.map(product =>
     activeIndices.map(i => {
-      const v = (planQty[cat.key] || [])[i] || 0;
+      const v = (planQty[product] || [])[i] || 0;
       return v > 0 ? v : null;
     })
   );
@@ -43,7 +42,7 @@ function buildChart() {
   // ── Totals per slot (index dalam activeIndices) ─────────────────────────────
   const totalActual = activeIndices.map((_, slot) => {
     let sum = null;
-    catData.forEach(arr => {
+    productData.forEach(arr => {
       if (arr[slot] != null) sum = (sum || 0) + arr[slot];
     });
     return sum;
@@ -51,7 +50,7 @@ function buildChart() {
 
   const totalPlan = activeIndices.map((_, slot) => {
     let sum = 0;
-    catPlanData.forEach(arr => { if (arr[slot]) sum += arr[slot]; });
+    productPlanData.forEach(arr => { if (arr[slot]) sum += arr[slot]; });
     return sum;
   });
 
@@ -65,7 +64,8 @@ function buildChart() {
   // ── Custom plugin: gambar label % di tengah/atas stacked bar 'actual' ──
   const pctLabelPlugin = {
     id: 'pctLabel',
-    afterDraw(chart) {
+    afterDatasetsDraw(chart) {
+      if (chart.tooltip && chart.tooltip.opacity > 0) return;
       const { ctx } = chart;
       const actualMeta = chart.data.datasets
         .map((ds, i) => ({ ds, i }))
@@ -130,14 +130,14 @@ function buildChart() {
           datalabels: { display: false }
         },
 
-        // Actual stacked per kategori — semua label OFF
-        ...PROD_CATS.map((cat, ci) => ({
-          label: cat.label,
-          data: catData[ci],
-          backgroundColor: cat.rgba,
+        // Actual stacked per canonical product — semua label OFF
+        ...products.map((product, pi) => ({
+          label: product,
+          data: productData[pi],
+          backgroundColor: getProductRgba(product, pi, 0.90),
           borderColor: 'transparent',
           borderWidth: 0,
-          borderRadius: ci === PROD_CATS.length - 1 ? 3 : 0,
+          borderRadius: pi === products.length - 1 ? 3 : 0,
           borderSkipped: false,
           order: 1,
           stack: 'actual',
@@ -145,13 +145,13 @@ function buildChart() {
         })),
 
         // Plan stacked — label OFF
-        ...PROD_CATS.map((cat, ci) => ({
-          label: 'Plan ' + cat.label,
-          data: catPlanData[ci],
-          backgroundColor: cat.color + '55',
-          borderColor: cat.color + '99',
+        ...products.map((product, pi) => ({
+          label: 'Plan ' + product,
+          data: productPlanData[pi],
+          backgroundColor: getProductColor(product, pi) + '55',
+          borderColor: getProductColor(product, pi) + '99',
           borderWidth: 1,
-          borderRadius: ci === PROD_CATS.length - 1 ? 3 : 0,
+          borderRadius: pi === products.length - 1 ? 3 : 0,
           borderSkipped: false,
           order: 2,
           stack: 'plan',
@@ -230,8 +230,9 @@ function buildChart() {
             labelColor: ctx => {
               if (ctx.dataset.label === 'Budget') return { borderColor: '#D1D5DB', backgroundColor: '#F1F3F5' };
               const lbl = ctx.dataset.label.replace('Plan ', '');
-              const cat = PROD_CATS.find(c => c.label === lbl);
-              return cat ? { borderColor: cat.color, backgroundColor: cat.color } : {};
+              const idx = products.indexOf(lbl);
+              const color = getProductColor(lbl, idx);
+              return { borderColor: color, backgroundColor: color };
             }
           }
         }
@@ -290,7 +291,8 @@ function _buildChartForProduct(productName, fm, activeIndices, activeLabels) {
 
   const pctLabelPlugin = {
     id: 'pctLabel',
-    afterDraw(chart) {
+    afterDatasetsDraw(chart) {
+      if (chart.tooltip && chart.tooltip.opacity > 0) return;
       const { ctx } = chart;
       const ds = chart.data.datasets.find(d => d.label === 'Actual');
       if (!ds) return;
@@ -574,49 +576,34 @@ function getActiveQtyData() {
 }
 
 function getProdCategoryData() {
-  // Brand palette only
-  const cats = {
-    sheetPile:  { label:'Sheet Pile',   color:'#373896', margin:0, revenue:0, mt:0, projects:[] },
-    weldedPipe: { label:'Welded Pipes', color:'#2077BD', margin:0, revenue:0, mt:0, projects:[] },
-    ppgl:       { label:'PPGL / Coil',  color:'#231F20', margin:0, revenue:0, mt:0, projects:[] },
-    gi:         { label:'GI Steel',     color:'#6D6E71', margin:0, revenue:0, mt:0, projects:[] },
-    gl:         { label:'GL Steel',     color:'#2AB675', margin:0, revenue:0, mt:0, projects:[] },
-  };
+  const indices = getActiveMonthIndices();
+  const products = getCanonicalProductNames();
+  const rows = products.map((product, idx) => ({
+    key: product,
+    label: product,
+    color: getProductColor(product, idx),
+    margin: sumProductMetric(ACTUAL_PRODUCTS || {}, product, 'margin', indices),
+    revenue: sumProductMetric(ACTUAL_PRODUCTS || {}, product, 'revenue', indices),
+    mt: indices.reduce((s, i) => s + getActualProductVolume(product, i), 0),
+    budgetMargin: sumProductMetric(BUDGET.products || {}, product, 'margin', indices),
+    budgetRevenue: sumProductMetric(BUDGET.products || {}, product, 'revenue', indices),
+    budgetMT: sumProductMetric(BUDGET.products || {}, product, 'volume', indices),
+    projects: []
+  }));
+  const byProduct = Object.fromEntries(rows.map(row => [row.key, row]));
 
-  // Helper: klasifikasi project dari nama (untuk data lama/seeded yang tidak punya category)
-  function classifyByName(name) {
-    const n = name.toLowerCase();
-    if (n.includes('sheet pile') || n.includes('mlion')) return 'sheetPile';
-    if (n.includes('welded') || n.includes('youfa') || n.includes('pipe')) return 'weldedPipe';
-    if (n.includes('ppgl') || n.includes('sssc') || n.includes('coil')) return 'ppgl';
-    if (n.includes('galvanized') || n.startsWith('gi')) return 'gi';
-    if (n.includes('galvalume') || n.startsWith('gl')) return 'gl';
-    return 'ppgl'; // fallback
-  }
-
-  // Margin & revenue — filter bulan aktif
-  Object.entries(getActiveChains()).forEach(([mk, chains]) => {
+  Object.values(getActiveChains()).forEach(chains => {
     chains.forEach(ch => {
-      const qEntry = (QTY_DATA[mk] || []).find(p => p.name === ch.name);
-      const key = (qEntry && qEntry.category) ? qEntry.category : classifyByName(ch.name);
-      if (!cats[key]) return;
-      cats[key].margin  += ch.margin;
-      cats[key].revenue += ch.revenue;
-      if (!cats[key].projects.includes(ch.name)) cats[key].projects.push(ch.name);
+      const product = ch.product;
+      if (!product || !byProduct[product]) return;
+      if (!byProduct[product].projects.includes(ch.name)) byProduct[product].projects.push(ch.name);
     });
   });
 
-  // Volume (MT) — filter bulan aktif
-  Object.values(getActiveQtyData()).forEach(projs => {
-    projs.forEach(p => {
-      const key = p.category ? p.category : classifyByName(p.name);
-      if (!cats[key]) return;
-      cats[key].mt += weightToMT(p.totalWeight);
-    });
-  });
-
-  // Kembalikan hanya kategori yang punya data
-  return Object.values(cats).filter(c => c.margin > 0 || c.mt > 0);
+  return rows.filter(row =>
+    row.margin > 0 || row.revenue > 0 || row.mt > 0 ||
+    row.budgetMargin > 0 || row.budgetRevenue > 0 || row.budgetMT > 0
+  );
 }
 
 function getCustomerData() {
@@ -631,7 +618,7 @@ function getCustomerData() {
   });
   Object.values(getActiveQtyData()).forEach(projs => {
       projs.forEach(p => {
-          if(custMap[p.customer]) custMap[p.customer].kg += parseInt((p.totalWeight||'').replace(/[^0-9]/g,''))||0;
+          if(custMap[p.customer]) custMap[p.customer].kg += weightToMT(p.totalWeight) * 1000;
       });
   });
   return custMap;
@@ -640,12 +627,13 @@ function getCustomerData() {
 function buildAnalytics() {
   const mq = document.getElementById('mini-qty');
   if(mq) {
-    const activeQD   = getActiveQtyData();
-    const activeKeys  = getActiveMonthKeys();
     const fm          = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
     const periodLabel = fm === -1 ? 'YTD' : (typeof _MS !== 'undefined' ? _MS[fm] : MONTH_KEYS[fm]);
-    let totalMT = 0;
-    Object.values(activeQD).forEach(projs => projs.forEach(p => totalMT += weightToMT(p.totalWeight)));
+    const activeIndices = getActiveMonthIndices();
+    const activeKeys = activeIndices.map(i => MONTH_KEYS[i]);
+    const chartProducts = getCanonicalProductNames();
+    const actualMTForMonth = (idx) => chartProducts.reduce((s, product) => s + getActualProductVolume(product, idx), 0);
+    const totalMT = activeIndices.reduce((s, idx) => s + actualMTForMonth(idx), 0);
     const budgetMonthly = getBudgetQtyMonthly();
     const totalBudgMT = fm === -1
       ? budgetMonthly.reduce((a,b)=>a+b,0)
@@ -657,8 +645,8 @@ function buildAnalytics() {
       <div class="mini-highlight" style="color:var(--brand-blue)">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
       <div class="mini-sub">of ${totalBudgMT.toLocaleString('id-ID')} MT · <span style="color:${pctColor};font-weight:700">${totalPct.toFixed(1)}%</span></div>
       <div class="mini-badges">
-        ${activeKeys.map(mk => {
-            const mt = (QTY_DATA[mk]||[]).reduce((s,p)=>s+weightToMT(p.totalWeight),0);
+        ${activeKeys.map((mk, pos) => {
+            const mt = actualMTForMonth(activeIndices[pos]);
             return mt > 0 ? `<span class="mini-badge" style="background:rgba(32,119,189,0.10);color:var(--brand-blue)">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
         }).join('')}
       </div>
@@ -672,7 +660,7 @@ function buildAnalytics() {
   const mpM = document.getElementById('mini-prod-margin');
   if(mpM) mpM.innerHTML = `
     <div class="mini-highlight" style="color:var(--brand-green-dark)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} kategori produk</div>
+    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} produk</div>
     <div class="mini-badges">
       ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
     </div>`;
@@ -735,17 +723,19 @@ function buildQtyPanel() {
   let html = '';
   projects.forEach((proj, pi) => {
     const open=qtyOpenStates[pi]!==undefined?qtyOpenStates[pi]:(pi===0);
+    const productColor = proj.product ? getProductColor(proj.product, pi) : (proj.color || 'var(--brand-blue)');
+    const productLabel = proj.product ? ` · ${proj.product}` : '';
     html += `
       <div class="qty-project">
         <div class="qty-project-head" onclick="toggleQtyProject(${pi})">
-            <div class="qty-proj-name" style="color:${proj.color}">
+            <div class="qty-proj-name" style="color:${productColor}">
             <span id="qty-arrow-${pi}" style="display:inline-block;margin-right:5px;transition:transform 0.2s;${open?'transform:rotate(90deg)':''}">▶</span>${proj.name}
             </div>
             <div class="qty-proj-total">${proj.totalWeight.replace(/ \(.*?\)/,'')}</div>
         </div>
         <div id="qty-prods-${pi}" style="${open?'':'display:none'}">
             <div class="qty-product-list">
-                <div style="font-size:10px;color:var(--muted);padding:0 0 6px;letter-spacing:0.5px;">${proj.customer}</div>`;
+                <div style="font-size:10px;color:var(--muted);padding:0 0 6px;letter-spacing:0.5px;">${proj.customer}${productLabel}</div>`;
     proj.products.forEach(p => {
       html += `<div class="qty-product-row"><div class="qty-product-name" title="${p.name}">${p.name}</div><div class="qty-product-weight">${p.qty} (${p.weight})</div></div>`;
     });

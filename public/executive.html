@@ -650,13 +650,58 @@ const fmtBillion = v => fmtIDR(v);
 // Display MT integer
 const fmtMT = v => fmtN(v) + ' MT';
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function parseLocaleNumber(raw) {
+  if (raw == null || raw === '') return 0;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+
+  let s = String(raw).trim().replace(/\s/g, '');
+  const match = s.match(/-?[\d.,]+/);
+  if (!match) return 0;
+  s = match[0];
+
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+  if (hasComma && hasDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    const parts = s.split(',');
+    s = parts.length === 2 && parts[1].length <= 3
+      ? parts[0] + '.' + parts[1]
+      : s.replace(/,/g, '');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    if (parts.length > 2) {
+      s = parts.join('');
+    } else {
+      s = parts[1].length === 3 && parts[0].length <= 3
+        ? parts.join('')
+        : s;
+    }
+  }
+
+  const n = parseFloat(s.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
 // Parse Indonesian-formatted KG string "300.000 KG (300 MT)" → KG as number
 function parseKG(str) {
   if (!str) return 0;
-  const s = str.toString();
-  // Extract part before "KG", remove dot (thousand separator in Indonesian), parse
-  const kgPart = s.split('KG')[0].trim().replace(/\./g, '').replace(/,/g, '.');
-  return parseFloat(kgPart) || 0;
+  const kgPart = String(str).split(/kg/i)[0];
+  return parseLocaleNumber(kgPart);
 }
 function parseWeightToMT(str) { return parseKG(str) / 1000; }
 
@@ -715,8 +760,10 @@ function _rankTipPayload(item) {
   const rpFull = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
   const mtFull = v => Math.round(v || 0).toLocaleString('id-ID') + ' MT';
   const offPlan = item.pct === Infinity || (item.pct != null && !isFinite(item.pct));
+  const actualRevenue = item.actualRevenue ?? item.revenue ?? 0;
+  const actualMT = item.actualMT ?? item.mt ?? 0;
   const lines = [
-    `<div class="rt-name">${item.name}</div>`,
+    `<div class="rt-name">${escapeHtml(item.name)}</div>`,
     `<div class="rt-row"><span>Actual Margin</span><strong>${rpFull((item.margin || 0) * 1e6)}</strong></div>`,
     `<div class="rt-row"><span>Budget Margin</span><strong>${(item.budgetMargin || 0) > 0 ? rpFull(item.budgetMargin * 1e6) : '—'}</strong></div>`,
     `<div class="rt-row rt-pct"><span>Achievement</span><strong>${_fmtPct(item.pct)}</strong></div>`,
@@ -724,26 +771,26 @@ function _rankTipPayload(item) {
   if (offPlan) {
     lines.push(`<div class="rt-note">Tidak ada budget untuk produk ini — actual masuk sebagai off-plan.</div>`);
   }
-  if (item.actualRevenue || item.budgetRevenue) {
+  if (actualRevenue || item.budgetRevenue) {
     lines.push(`<div class="rt-sep"></div>`);
-    lines.push(`<div class="rt-row"><span>Actual Revenue</span><strong>${rpFull((item.actualRevenue || 0) * 1e6)}</strong></div>`);
+    lines.push(`<div class="rt-row"><span>Actual Revenue</span><strong>${rpFull(actualRevenue * 1e6)}</strong></div>`);
     lines.push(`<div class="rt-row"><span>Budget Revenue</span><strong>${(item.budgetRevenue || 0) > 0 ? rpFull(item.budgetRevenue * 1e6) : '—'}</strong></div>`);
   }
-  if (item.actualMT || item.budgetMT) {
+  if (actualMT || item.budgetMT) {
     lines.push(`<div class="rt-sep"></div>`);
-    lines.push(`<div class="rt-row"><span>Actual Volume</span><strong>${mtFull(item.actualMT)}</strong></div>`);
+    lines.push(`<div class="rt-row"><span>Actual Volume</span><strong>${mtFull(actualMT)}</strong></div>`);
     lines.push(`<div class="rt-row"><span>Budget Volume</span><strong>${(item.budgetMT || 0) > 0 ? mtFull(item.budgetMT) : '—'}</strong></div>`);
   }
   return lines.join('');
 }
 
 function rankItemHTML(item, rank, colorCls) {
-  const tip = _rankTipPayload(item).replace(/"/g, '&quot;');
+  const tip = escapeAttr(_rankTipPayload(item));
   return `
     <div class="rank-item has-rank-tip" data-tip="${tip}"
          onmouseenter="_showRankTip(this)" onmouseleave="_hideRankTip()" onmousemove="_moveRankTip(event)">
       <div class="rank-num ${colorCls}">${rank}</div>
-      <div class="rank-name">${item.name}</div>
+      <div class="rank-name">${escapeHtml(item.name)}</div>
       <div class="rank-vals">
         <div class="rank-value">${fmtBillion(item.margin)}</div>
         <span class="rank-pct ${colorCls}">${_fmtPct(item.pct)}</span>
@@ -788,29 +835,6 @@ function _hideRankTip() {
   if (!_rankTipEl) return;
   _rankTipEl.style.opacity = '0';
   setTimeout(() => { if (_rankTipEl) _rankTipEl.style.display = 'none'; }, 120);
-}
-
-// ── Aggregate helpers ──────────────────────────────────────────────────────────
-// ── Category definitions (mirrored from state.js PROD_CATS) ───────────────────
-const CAT_DEFS = [
-  { key:'sheetPile',  label:'Sheet Pile' },
-  { key:'weldedPipe', label:'Pipe'       },
-  { key:'erwPipe',    label:'ERW Pipe'   },
-  { key:'gl',         label:'GL'         },
-  { key:'gi',         label:'GI'         },
-  { key:'ppgl',       label:'PPGL'       },
-];
-
-// Classify project name → category key (fallback when QTY_DATA has no category)
-function classifyByName(name) {
-  const n = (name || '').toLowerCase();
-  if (n.includes('sheet pile') || n.includes('mlion')) return 'sheetPile';
-  if (n.includes('erw'))                               return 'erwPipe';
-  if (n.includes('welded') || n.includes('youfa') || (n.includes('pipe') && !n.includes('erw')) || n.includes('seamless')) return 'weldedPipe';
-  if (n.includes('ppgl') || n.includes('sssc') || n.includes('coil')) return 'ppgl';
-  if (n.includes('galvanized') || n.includes(' gi ') || n.startsWith('gi')) return 'gi';
-  if (n.includes('galvalume') || n.includes(' gl ') || n.startsWith('gl')) return 'gl';
-  return null; // unknown
 }
 
 // Build product ranking by CANONICAL PRODUCT
@@ -923,15 +947,16 @@ function render() {
   setKpiCol('mar-ytd', marYtd,  marBYtd,  false);
 
   // ── VOLUME card ───────────────────────────────────────────────────────────────
-  // totalWeight in QTY_DATA is a string like "300.000 KG (300 MT)"
-  // Budget qty is in MT per product category
   function getVolumeMT(idx) {
+    const actualProducts = Object.values(DATA.ACTUAL_PRODUCTS || {});
+    if (actualProducts.length > 0) {
+      return actualProducts.reduce((s, product) => s + (product.volume[idx] || 0), 0);
+    }
     const mk = MONTH_KEYS[idx];
     return (QTY_DATA[mk] || []).reduce((s, p) => s + parseWeightToMT(p.totalWeight), 0);
   }
   function getBudgetMT(idx) {
-    const qty = BUDGET.qty || {};
-    return Object.values(qty).reduce((s, arr) => s + (arr[idx] || 0), 0);
+    return Object.values(BUDGET.products || {}).reduce((s, product) => s + (product.volume[idx] || 0), 0);
   }
 
   const volMtd  = getVolumeMT(mtdIdx);

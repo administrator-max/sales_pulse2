@@ -93,9 +93,9 @@ app.get('/dashboard', (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public'), {
-  // Asset statis bisa di-cache. HTML tetap di-revalidate biar update cepat tampil.
+  // JS/CSS sering berubah saat audit dashboard, jadi revalidate agar UI tidak stale.
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html')) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
       res.setHeader('Cache-Control', 'no-cache');
     } else {
       res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -129,25 +129,40 @@ pool.on('error', (err) => {
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const COLORS = ['#f59e0b', '#a78bfa', '#22d3ee', '#4ade80', '#fb923c', '#818cf8', '#38bdf8'];
 
-// ── Detect product category from material code ──────────────────────────────
-function detectCategory(materialCode) {
-  const m = (materialCode || '').toLowerCase().trim();
-  const prefix = m.includes('-') ? m.split('-')[0].trim() : '';
+function parseProjectSheetDate(value) {
+  if (value == null || value === '') return { date: null, monthIdx: null };
 
-  if (prefix === 'sp' || prefix === 'sh')               return 'sheetPile';
-  if (prefix.startsWith('gi'))                          return 'gi';
-  if (prefix.startsWith('gl') && prefix !== 'gla')      return 'gl';
-  if (prefix.startsWith('ppgl'))                        return 'ppgl';
-  if (prefix.startsWith('erw'))                         return 'erwPipe';
+  const raw = String(value).trim();
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const serial = Number(raw);
+    if (serial > 20000 && serial < 80000) {
+      const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+      if (!Number.isNaN(d.getTime())) {
+        return {
+          date: d.toISOString().slice(0, 10),
+          monthIdx: d.getUTCMonth()
+        };
+      }
+    }
+  }
 
-  if (m.includes('sheet pile') || m.includes('sy295') || m.includes('sy390')) return 'sheetPile';
-  if (m.includes('ppgl') || m.includes('sssc'))         return 'ppgl';
-  if (m.includes('az100') || m.includes('galvalume'))   return 'ppgl';
-  if (m.includes('galvanized'))                         return 'gi';
-  if (m.includes('erw'))                                return 'erwPipe';
-  if (m.includes('sni 2013') || m.includes('seamless') || m.includes('pipe')) return 'weldedPipe';
+  const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (dmy) {
+    const yyyy = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+    const mm = dmy[2].padStart(2, '0');
+    const dd = dmy[1].padStart(2, '0');
+    return { date: `${yyyy}-${mm}-${dd}`, monthIdx: parseInt(mm, 10) - 1 };
+  }
 
-  return null;
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return {
+      date: d.toISOString().slice(0, 10),
+      monthIdx: d.getUTCMonth()
+    };
+  }
+
+  return { date: null, monthIdx: null };
 }
 
 // ============================================================================
@@ -159,10 +174,9 @@ app.get('/api/data', async (req, res) => {
 
     // Aggregate budget dari `budget_lines` (granular per produk):
     //  - Total margin/revenue per bulan (untuk KPI strip + chart utama)
-    //  - Volume MT per bulan per macro_category (untuk chart QTY 6-bucket lama)
-    //  - Detail per canonical product (dipakai ranking & dropdown filter di frontend)
+    //  - Volume/revenue/margin per canonical product (ranking, chart, dropdown)
     // Plus aktualnya per canonical product (untuk achievement % per produk).
-    const [budgetMonthlyRes, budgetByMacroRes, budgetByProductRes,
+    const [budgetMonthlyRes, budgetByProductRes,
            actualByProductRes, actualVolumeByProductRes,
            actualsRes, plansRes, psHeadersRes, psItemsRes] = await Promise.all([
       pool.query(`
@@ -174,15 +188,6 @@ app.get('/api/data', async (req, res) => {
          WHERE year = $1
          GROUP BY month_idx
          ORDER BY month_idx ASC
-      `, [year]),
-      pool.query(`
-        SELECT bl.month_idx,
-               COALESCE(p.macro_category,'other') AS macro_category,
-               COALESCE(SUM(bl.volume_mt),0) AS volume_mt
-          FROM budget_lines bl
-          LEFT JOIN products p ON p.canonical_name = bl.product
-         WHERE bl.year = $1
-         GROUP BY bl.month_idx, macro_category
       `, [year]),
       pool.query(`
         SELECT month_idx, product,
@@ -226,16 +231,10 @@ app.get('/api/data', async (req, res) => {
       `, [year]),
     ]);
 
-    // 1. BUDGET — total margin/revenue dalam MIDR (juta), qty dalam MT per macro
+    // 1. BUDGET — total margin/revenue dalam MIDR (juta), detail per canonical product
     const BUDGET = {
       margin:  Array(12).fill(0),   // MIDR
       revenue: Array(12).fill(0),   // MIDR
-      qty: {
-        sheetPile:  Array(12).fill(0), weldedPipe: Array(12).fill(0),
-        erwPipe:    Array(12).fill(0), gl:         Array(12).fill(0),
-        gi:         Array(12).fill(0), ppgl:       Array(12).fill(0),
-      },
-      // Detail granular per canonical product (untuk ranking & dropdown filter)
       products: {},   // { 'Sheet Pile': { volume:[12], revenue:[12], margin:[12] }, ... }
     };
 
@@ -243,11 +242,6 @@ app.get('/api/data', async (req, res) => {
     budgetMonthlyRes.rows.forEach(r => {
       BUDGET.margin[r.month_idx]  = parseFloat(r.margin_raw)  / 1e6;
       BUDGET.revenue[r.month_idx] = parseFloat(r.revenue_raw) / 1e6;
-    });
-
-    budgetByMacroRes.rows.forEach(r => {
-      const k = r.macro_category;
-      if (BUDGET.qty[k]) BUDGET.qty[k][r.month_idx] = parseFloat(r.volume_mt);
     });
 
     budgetByProductRes.rows.forEach(r => {
@@ -379,7 +373,6 @@ app.get('/api/data', async (req, res) => {
 
       // QTY_DATA
       let totalKg = 0, totalQty = 0, unit = 'pcs';
-      let detectedCategory = null;
       const allProducts = [];
 
       headers.forEach(header => {
@@ -388,7 +381,6 @@ app.get('/api/data', async (req, res) => {
           totalKg  += parseFloat(item.total_weight_kg || 0);
           totalQty += parseFloat(item.qty_val || 0);
           if (item.qty_unit) unit = item.qty_unit.trim();
-          if (!detectedCategory) detectedCategory = detectCategory(item.material);
           allProducts.push({
             name:   (item.material + (item.size ? ' (' + item.size + ')' : '')).trim(),
             qty:    parseFloat(item.qty_val).toLocaleString('id-ID') + ' ' + (item.qty_unit || ''),
@@ -397,17 +389,18 @@ app.get('/api/data', async (req, res) => {
         });
       });
 
-      QTY_DATA[mKey].push({
-        name:        projectName,
-        color:       COLORS[colorIdx++ % COLORS.length],
-        customer,
-        totalQty:    totalQty.toLocaleString('id-ID') + ' ' + unit,
-        totalWeight: totalKg.toLocaleString('id-ID') + ' KG (' + Math.round(totalKg/1000).toLocaleString('id-ID') + ' MT)',
-        category:    detectedCategory,                  // legacy macro bucket
-        product:     canonicalProduct,                  // new canonical product
-        segment:     segmentVal,
-        products:    allProducts,
-      });
+      if (totalKg > 0) {
+        QTY_DATA[mKey].push({
+          name:        projectName,
+          color:       COLORS[colorIdx++ % COLORS.length],
+          customer,
+          totalQty:    totalQty.toLocaleString('id-ID') + ' ' + unit,
+          totalWeight: totalKg.toLocaleString('id-ID') + ' KG (' + Math.round(totalKg/1000).toLocaleString('id-ID') + ' MT)',
+          product:     canonicalProduct,                  // new canonical product
+          segment:     segmentVal,
+          products:    allProducts,
+        });
+      }
     });
 
     // Browser cache pendek + revalidate. /api/data dipanggil tiap ganti tahun/bulan,
@@ -589,18 +582,14 @@ app.post('/api/project-sheet', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Hitung monthIdx dari PO Date (format DD/MM/YYYY)
-    let monthIdx = 0;
-    if (header.poDate) {
-      const parts = header.poDate.split('/');
-      if (parts.length >= 2) monthIdx = parseInt(parts[1]) - 1;
-    }
+    const parsedPoDate = parseProjectSheetDate(header.poDate);
+    let monthIdx = parsedPoDate.monthIdx == null ? 0 : parsedPoDate.monthIdx;
     if (monthIdx < 0 || monthIdx > 11) monthIdx = 0;
 
-    const psYear = parseInt(header.dashboardYear) || new Date().getFullYear();
+    const psYear = parseInt(header.dashboardYear) ||
+      (parsedPoDate.date ? parseInt(parsedPoDate.date.slice(0, 4), 10) : new Date().getFullYear());
 
     // Detect canonical product dari material/project name pakai product_aliases
-    // Fallback ke detectCategory lama kalau tidak match alias apapun
     let detectedProduct = null;
     let detectedSegment = null;
     if (Array.isArray(items) && items.length > 0) {
@@ -635,11 +624,12 @@ app.post('/api/project-sheet', async (req, res) => {
         ps_number, dashboard_month_idx, dashboard_year,
         project_code, project_name, subsidiary,
         customer_name, supplier_name,
+        po_date,
         currency, fx_rate, net_margin_native,
         sales_revenue, purchase_cost,
         margin, margin_percentage,
         product, segment
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       ON CONFLICT (ps_number) DO UPDATE SET
         dashboard_month_idx  = EXCLUDED.dashboard_month_idx,
         dashboard_year       = EXCLUDED.dashboard_year,
@@ -648,6 +638,7 @@ app.post('/api/project-sheet', async (req, res) => {
         subsidiary           = EXCLUDED.subsidiary,
         customer_name        = EXCLUDED.customer_name,
         supplier_name        = EXCLUDED.supplier_name,
+        po_date              = EXCLUDED.po_date,
         currency             = EXCLUDED.currency,
         fx_rate              = EXCLUDED.fx_rate,
         net_margin_native    = EXCLUDED.net_margin_native,
@@ -666,6 +657,7 @@ app.post('/api/project-sheet', async (req, res) => {
       header.subsidiary,
       header.customerName,
       header.supplierName,
+      parsedPoDate.date,
       header.currency || 'IDR',
       header.fxToIDR  || 1,
       header.netMarginNative != null ? header.netMarginNative : header.margin,

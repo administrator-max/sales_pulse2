@@ -123,6 +123,7 @@ INSERT INTO product_aliases (alias, canonical_name) VALUES
 ('HRC',                    'HRC'),
 ('HRPO',                   'HRPO'),
 ('Pipe',                   'ERW Pipe'),
+('WELDED PIPES',           'ERW Pipe'),
 ('Plate',                  'Plate'),
 ('PPGL',                   'PPGL'),
 ('Projects',               'Projects'),

@@ -50,15 +50,15 @@ function buildAnalyticsDetail(type) {
         </div>
         </div>`;
       
-      QTY_PROD_LABELS.forEach(bq => {
-          const act=actual[bq.key]||0;
-          const bgt = bqt[bq.key].budgetMT;
+      Object.entries(bqt).forEach(([product, info]) => {
+          const act=actual[product]||0;
+          const bgt = info.budgetMT || 0;
           const pct= bgt > 0 ? act/bgt*100 : 0;
           const col=pct>=100?'var(--ok)':pct>=50?'var(--warn)':'var(--over)';
           
           h+=`<div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-size:13px;font-weight:700;color:var(--text)">${bq.label}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${info.label}</div>
             <div style="text-align:right"><div style="font-family:inherit;font-size:18px;font-weight:700;color:var(--actual)">${fmtN(act)} MT</div>
               <div style="font-size:10px;color:var(--muted)">Budget: ${fmtN(bgt)} MT</div></div>
           </div>
@@ -67,7 +67,7 @@ function buildAnalyticsDetail(type) {
             <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:${col}22;color:${col}">${pct.toFixed(1)}%</span>
           </div>
           <div style="height:8px;background:var(--s3);border-radius:99px;overflow:hidden;">
-            <div style="height:100%;width:${Math.min(pct,100)}%;background:var(--actual);border-radius:99px;"></div></div>
+            <div style="height:100%;width:${Math.min(pct,100)}%;background:${info.color};border-radius:99px;"></div></div>
         </div>`;
       });
       return h;
@@ -169,123 +169,6 @@ function buildAnalyticsDetail(type) {
       return h;
   }
   return '';
-}
-
-// ── BUDGET EDIT LOGIC ──
-let activeBudgetMonth = 0;
-
-let BUDGET_YEAR = new Date().getFullYear();
-
-function openBudgetModal() {
-  activeBudgetMonth = 0;
-  BUDGET_YEAR = typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : new Date().getFullYear();
-  const lbl = document.getElementById('budget-year-label');
-  if (lbl) lbl.textContent = BUDGET_YEAR;
-  renderBudgetForm();
-  document.getElementById('budget-modal-overlay').classList.add('open');
-}
-
-async function shiftBudgetYear(delta) {
-  BUDGET_YEAR += delta;
-
-  // Update label di modal
-  const lbl = document.getElementById('budget-year-label');
-  if (lbl) lbl.textContent = BUDGET_YEAR;
-
-  // Sync dengan filter dashboard
-  if (typeof FILTER_YEAR !== 'undefined') {
-    FILTER_YEAR = BUDGET_YEAR;
-    const fl = document.getElementById('filter-year-label');
-    if (fl) fl.textContent = FILTER_YEAR;
-    if (typeof _updateFilterBadge === 'function') _updateFilterBadge();
-  }
-
-  // Tampilkan loading state di form
-  const bgtMargin  = document.getElementById('bgt-margin');
-  const bgtRevenue = document.getElementById('bgt-revenue');
-  if (bgtMargin)  bgtMargin.style.opacity  = '0.4';
-  if (bgtRevenue) bgtRevenue.style.opacity = '0.4';
-
-  // Re-fetch budget data untuk tahun baru dari server
-  try {
-    const res  = await fetch('/api/data?year=' + BUDGET_YEAR);
-    if (res.ok) {
-      const data = await res.json();
-      // Update BUDGET global state dengan data tahun baru
-      if (data.BUDGET) {
-        BUDGET.margin  = data.BUDGET.margin  || Array(12).fill(0);
-        BUDGET.revenue = data.BUDGET.revenue || Array(12).fill(0);
-        BUDGET.qty     = data.BUDGET.qty     || BUDGET.qty;
-      } else {
-        // Tahun baru belum ada data → reset ke nol
-        BUDGET.margin  = Array(12).fill(0);
-        BUDGET.revenue = Array(12).fill(0);
-        Object.keys(BUDGET.qty).forEach(k => { BUDGET.qty[k] = Array(12).fill(0); });
-      }
-    }
-  } catch(e) {
-    console.warn('Budget fetch failed:', e);
-  }
-
-  // Restore opacity dan render form dengan data baru
-  if (bgtMargin)  bgtMargin.style.opacity  = '1';
-  if (bgtRevenue) bgtRevenue.style.opacity = '1';
-  renderBudgetForm();
-}
-
-function closeBudgetModal(e, force) {
-  if(!force && e && e.target !== document.getElementById('budget-modal-overlay')) return;
-  document.getElementById('budget-modal-overlay').classList.remove('open');
-}
-
-function applyBudgetFormToState() {
-  const idx = activeBudgetMonth;
-  BUDGET.margin[idx] = parseFloat(document.getElementById('bgt-margin').value) || 0;
-  BUDGET.revenue[idx] = parseFloat(document.getElementById('bgt-revenue').value) || 0;
-  QTY_PROD_LABELS.forEach(p => {
-    BUDGET.qty[p.key][idx] = parseFloat(document.getElementById(`bgt-qty-${p.key}`).value) || 0;
-  });
-}
-
-function switchBudgetTab(idx) {
-  applyBudgetFormToState();
-  activeBudgetMonth = idx;
-  renderBudgetForm();
-}
-
-function renderBudgetForm() {
-  document.getElementById('budget-tabs-wrap').innerHTML = MONTHS.map((m, i) => 
-    `<button class="qty-tab-btn ${i===activeBudgetMonth?'active':''}" onclick="switchBudgetTab(${i})">${m}</button>`
-  ).join('');
-
-  document.getElementById('bgt-margin').value = BUDGET.margin[activeBudgetMonth] || 0;
-  document.getElementById('bgt-revenue').value = BUDGET.revenue[activeBudgetMonth] || 0;
-  
-  const grid = document.getElementById('bgt-qty-grid');
-  grid.innerHTML = QTY_PROD_LABELS.map(p => {
-    const val = BUDGET.qty[p.key][activeBudgetMonth] || 0;
-    return `
-      <div style="background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:8px;">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">${p.label} (MT)</div>
-        <input type="number" id="bgt-qty-${p.key}" value="${val}" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:700;font-size:15px;font-family:inherit;outline:none;">
-      </div>`;
-  }).join('');
-}
-
-async function saveBudgetToDB() {
-  applyBudgetFormToState();
-  try {
-    await fetch('/api/budget', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ BUDGET, year: BUDGET_YEAR })
-    });
-    showToast('Budget ' + BUDGET_YEAR + ' updated ✓');
-    closeBudgetModal(null, true);
-    refreshAll();
-  } catch(e) {
-    showToast('Error saving budget', true);
-  }
 }
 
 // ── MODAL AND SAVE PLAN LOGIC ──
@@ -674,10 +557,20 @@ function spTotals(idx){
   const totalMargin  = revs.reduce((s,r) => s + (parseFloat(r.margin)||0), 0);
   const totalRevenue = revs.reduce((s,r) => s + (parseFloat(r.revenue)||0), 0);
   const totalQty = {};
-  QTY_PROD_LABELS.forEach(p => {
-    totalQty[p.key] = revs.reduce((s,r) => s + (parseFloat((r.qty||{})[p.key])||0), 0);
+  getPlanProductsForMonth(idx).forEach(product => {
+    totalQty[product] = revs.reduce((s,r) => s + getPlanQtyValue(r.qty, product), 0);
   });
   return { margin: totalMargin, revenue: totalRevenue, qty: totalQty, count: revs.length };
+}
+
+function getPlanProductsForMonth(idx) {
+  const products = getCanonicalProductNames({ includeEmpty: true }).filter(product => {
+    const hasBudget = getMetricValue(BUDGET.products || {}, product, 'volume', idx) > 0;
+    const hasActual = getActualProductVolume(product, idx) > 0;
+    const hasPlan = (PLAN_REVISIONS[idx] || []).some(rev => getPlanQtyValue(rev.qty, product) > 0);
+    return hasBudget || hasActual || hasPlan;
+  });
+  return products.length ? products : getCanonicalProductNames();
 }
 
 function spRevLabel(i){ return 'Deal '+(i+1); }
@@ -794,20 +687,23 @@ function loadPlanForm(idx) {
   
   const grid = document.getElementById('sp-qty-grid');
   const otherRevs = revs.filter((_,i) => i !== active);
-  grid.innerHTML = QTY_PROD_LABELS.map(p => {
-    const budgetVal  = BUDGET.qty[p.key][idx] || 0;
-    const savedVal   = d && d.qty ? (d.qty[p.key] || '') : '';
-    const otherTotal = otherRevs.reduce((s,r) => s + (parseFloat((r.qty||{})[p.key])||0), 0);
+  grid.innerHTML = getPlanProductsForMonth(idx).map((product, pi) => {
+    const domKey     = productDomId(product);
+    const budgetVal  = getMetricValue(BUDGET.products || {}, product, 'volume', idx) || 0;
+    const savedNum   = d && d.qty ? getPlanQtyValue(d.qty, product) : 0;
+    const savedVal   = savedNum > 0 ? savedNum : '';
+    const otherTotal = otherRevs.reduce((s,r) => s + getPlanQtyValue(r.qty, product), 0);
     const planNum    = parseFloat(savedVal) || 0;
     const combined   = planNum + otherTotal;
     const bgtPct     = budgetVal > 0 ? (combined/budgetVal*100).toFixed(0)+'%' : '';
     const pctColor   = budgetVal > 0 ? (combined>=budgetVal?'var(--ok)':'var(--over)') : 'var(--muted)';
+    const color      = getProductColor(product, pi);
 
-    return '<div style="background:var(--s2);border-radius:6px;padding:8px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px;">'+p.label+'</div>'
-        + '<input type="number" id="sp-qty-'+p.key+'" value="'+savedVal+'" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:bold;outline:none;" oninput="spUpdateQtyPct(\''+p.key+'\','+budgetVal+','+otherTotal+',this.value)">'
+    return '<div style="background:var(--s2);border-radius:6px;padding:8px;"><div style="font-size:10px;color:'+color+';margin-bottom:4px;font-weight:700;">'+product+'</div>'
+        + '<input type="number" id="sp-qty-'+domKey+'" value="'+savedVal+'" style="width:100%;background:transparent;border:none;color:var(--text);font-weight:bold;outline:none;" oninput="spUpdateQtyPct(\''+domKey+'\','+budgetVal+','+otherTotal+',this.value)">'
         + '<div style="display:flex;justify-content:space-between;margin-top:4px;">'
         + '<span style="font-size:9px;color:var(--muted);">Bgt: '+budgetVal.toLocaleString('id-ID')+' MT</span>'
-        + '<span id="sp-qty-pct-'+p.key+'" style="font-size:9px;font-weight:700;color:'+pctColor+';">'+bgtPct+'</span>'
+        + '<span id="sp-qty-pct-'+domKey+'" style="font-size:9px;font-weight:700;color:'+pctColor+';">'+bgtPct+'</span>'
         + '</div>'
         + (otherTotal > 0 ? '<div style="font-size:8px;color:var(--muted);margin-top:2px;">+'+otherTotal+' MT deal lain</div>' : '')
         + '</div>';
@@ -868,13 +764,19 @@ async function savePlanData() {
   d.margin = document.getElementById('sp-margin').value;
   d.revenue = document.getElementById('sp-revenue').value;
   d.notes   = document.getElementById('sp-notes').value;
-  QTY_PROD_LABELS.forEach(p => { d.qty[p.key] = document.getElementById('sp-qty-'+p.key).value; });
+  if (!d.qty) d.qty = {};
+  Object.keys(LEGACY_PRODUCT_KEY_TO_CANONICAL).forEach(key => delete d.qty[key]);
+  getPlanProductsForMonth(idx).forEach(product => {
+    const el = document.getElementById('sp-qty-' + productDomId(product));
+    if (!el) return;
+    if (el.value === '') delete d.qty[product];
+    else d.qty[product] = el.value;
+  });
   const now = new Date();
   d.ts = now.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'2-digit'}) + ' ' + now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
 
   const t = spTotals(idx);
   ACTUAL.plan[idx] = t.margin > 0 ? t.margin : null;
-  ACTUAL.revenue[idx] = t.revenue > 0 ? t.revenue : null;
   ACTUAL.notes[idx] = revs.filter(r=>r.notes).map(r=>(r.name?r.name+': ':'')+r.notes).join(' | ');
   
   await persist(); 
@@ -907,20 +809,19 @@ function shiftQtyMonth(dir) {
 
 function renderQtyBreakdown() {
   const mi = _qtyBdMonth;
-  const monthKey = MONTH_KEYS[mi];
-  const actualProjs = QTY_DATA[monthKey] || [];
+  const products = getCanonicalProductNames({ includeEmpty: true }).filter(product =>
+    getMetricValue(BUDGET.products || {}, product, 'volume', mi) > 0 ||
+    getActualProductVolume(product, mi) > 0
+  );
+  const rows = products.map((product, idx) => ({
+    product,
+    color: getProductColor(product, idx),
+    actualMT: getActualProductVolume(product, mi),
+    budgetMT: getMetricValue(BUDGET.products || {}, product, 'volume', mi)
+  }));
 
-  const actualMT = {};
-  PROD_CATS.forEach(cat => {
-    const mt = actualProjs
-      .filter(p => cat.match(p.name.toLowerCase()))
-      .reduce((s,p) => s + weightToMT(p.totalWeight), 0);
-    actualMT[cat.key] = mt; 
-  });
-
-  const totalActual = Object.values(actualMT).reduce((s,v) => s + v, 0);
-  const budgetQtyMonthly = getBudgetQtyMonthly();
-  const totalBudget = budgetQtyMonthly[mi];
+  const totalActual = rows.reduce((s,row) => s + row.actualMT, 0);
+  const totalBudget = rows.reduce((s,row) => s + row.budgetMT, 0);
   const totalPct    = totalBudget > 0 ? (totalActual/totalBudget*100) : (totalActual > 0 ? Infinity : 0);
   const hasActual   = totalActual > 0;
   const achColor    = totalPct >= 100 ? 'var(--ok)' : totalPct >= 60 ? 'var(--warn)' : 'var(--over)';
@@ -949,13 +850,11 @@ function renderQtyBreakdown() {
 
   const body = document.getElementById('qtybd-body');
   let html = '';
-  const maxBgt = Math.max(...PROD_CATS.map(c => BUDGET.qty[c.key][mi]||0), 1);
-  const maxAct = Math.max(...PROD_CATS.map(c => actualMT[c.key]||0), 1);
-  const maxBar = Math.max(maxBgt, maxAct);
+  const maxBar = Math.max(...rows.map(row => row.budgetMT), ...rows.map(row => row.actualMT), 1);
 
-  PROD_CATS.forEach(cat => {
-    const catBgt   = BUDGET.qty[cat.key][mi] || 0;
-    const catAct   = actualMT[cat.key] || 0;
+  rows.forEach(row => {
+    const catBgt   = row.budgetMT;
+    const catAct   = row.actualMT;
     const gap      = catAct - catBgt;
     const gapStr   = (gap >= 0 ? '+' : '') + Math.round(gap).toLocaleString('id-ID') + ' MT';
     const gapColor = gap >= 0 ? 'var(--ok)' : 'var(--over)';
@@ -972,8 +871,8 @@ function renderQtyBreakdown() {
     <div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.04);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="width:10px;height:10px;border-radius:2px;background:${cat.color};display:inline-block;flex-shrink:0;"></span>
-          <span style="font-size:13px;font-weight:700;color:var(--text);">${cat.label}</span>
+          <span style="width:10px;height:10px;border-radius:2px;background:${row.color};display:inline-block;flex-shrink:0;"></span>
+          <span style="font-size:13px;font-weight:700;color:var(--text);">${row.product}</span>
         </div>
         <div style="display:flex;align-items:baseline;gap:10px;">
           <span style="font-size:11px;color:${gapColor};font-weight:700;">${gapStr}</span>
@@ -983,11 +882,15 @@ function renderQtyBreakdown() {
       </div>
       <div style="position:relative;height:5px;background:var(--s3);border-radius:99px;overflow:visible;margin-bottom:4px;">
         <div style="position:absolute;top:0;left:0;height:100%;width:${bgtBarW}%;background:rgba(255,255,255,0.10);border-radius:99px;"></div>
-        <div style="position:absolute;top:0;left:0;height:100%;width:${actBarW}%;background:${cat.color};border-radius:99px;opacity:0.85;transition:width 0.5s cubic-bezier(.4,0,.2,1);"></div>
+        <div style="position:absolute;top:0;left:0;height:100%;width:${actBarW}%;background:${row.color};border-radius:99px;opacity:0.85;transition:width 0.5s cubic-bezier(.4,0,.2,1);"></div>
       </div>
       <div style="font-size:10px;color:var(--muted2);margin-top:4px;">${pctText}</div>
     </div>`;
   });
+
+  if (rows.length === 0) {
+    html = `<div style="padding:16px 20px;color:var(--muted);font-size:12px;">Tidak ada budget atau actual volume untuk ${MONTHS[mi]}.</div>`;
+  }
 
   if (!hasActual) {
     html = `<div style="padding:10px 20px 4px;"><span style="font-size:11px;color:var(--muted);font-style:italic;">Belum ada data aktual untuk ${MONTHS[mi]} — menampilkan budget target</span></div>` + html;

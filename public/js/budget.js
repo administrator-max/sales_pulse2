@@ -117,8 +117,35 @@ function parseBudgetExcel(rows) {
   const cleanNum = v => {
     if (v === '' || v == null) return 0;
     if (typeof v === 'number') return v;
-    let s = String(v).replace(/,/g, '').trim();
-    return parseFloat(s) || 0;
+    let s = String(v).replace(/"/g, '').trim();
+    const negative = s.startsWith('(') && s.endsWith(')');
+    s = s.replace(/[()%]/g, '').replace(/\s/g, '');
+    const match = s.match(/-?[\d.,]+/);
+    if (!match) return 0;
+    s = match[0];
+
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else if (hasComma) {
+      const parts = s.split(',');
+      s = parts.length === 2 && parts[1].length <= 3
+        ? parts[0] + '.' + parts[1]
+        : s.replace(/,/g, '');
+    } else if (hasDot) {
+      const parts = s.split('.');
+      if (parts.length > 2) {
+        s = parts.join('');
+      } else {
+        s = parts[1].length === 3 && parts[0].length <= 3
+          ? parts.join('')
+          : s;
+      }
+    }
+
+    const n = parseFloat(s.replace(/[^\d.-]/g, '')) || 0;
+    return negative ? -Math.abs(n) : n;
   };
 
   // 1. Cari YEAR (row 0 col 1)
@@ -132,7 +159,7 @@ function parseBudgetExcel(rows) {
     if (v === 'REVENUE') sections.revenue = idx;
     if (v === 'MARGIN')  sections.margin  = idx;
   });
-  if (!sections.volume || !sections.revenue || !sections.margin) {
+  if (sections.volume == null || sections.revenue == null || sections.margin == null) {
     throw new Error('Format tidak dikenali — perlu section VOLUME, REVENUE, MARGIN');
   }
 
@@ -235,12 +262,12 @@ function renderBudgetPreview(parsed) {
 
   // Product chips
   document.getElementById('bi-products').innerHTML = stats.products
-    .map(p => `<span class="bi-chip">${p}</span>`)
+    .map(p => `<span class="bi-chip">${escapeHtml(p)}</span>`)
     .join('');
 
   document.getElementById('bi-meta').innerHTML = `
     <div><strong>${stats.segments.length}</strong> segment(s) · <strong>${stats.products.length}</strong> product(s) · <strong>${stats.monthsCovered.length}</strong> bulan</div>
-    <div style="font-size:11px;color:var(--muted);margin-top:4px;">Segments: ${stats.segments.join(', ')}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;">Segments: ${stats.segments.map(escapeHtml).join(', ')}</div>
   `;
 }
 

@@ -16,7 +16,8 @@ function addChatMsg(text,role){
   const msgs=document.getElementById('chatMessages');
   const div=document.createElement('div');
   div.className=`chat-msg ${role}`;
-  div.innerHTML=text;
+  if (role === 'user') div.textContent = text;
+  else div.innerHTML = text;
   msgs.appendChild(div);
   msgs.scrollTop=msgs.scrollHeight;
   return div;
@@ -80,11 +81,11 @@ function chatFallback(q, d) {
   }
 
   if (foundProject) {
-      return `<strong>${foundProject.name}</strong> — ${foundProjectMonth} ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:<br>
+      return `<strong>${escapeHtml(foundProject.name)}</strong> — ${foundProjectMonth} ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:<br>
       Revenue: <strong>IDR ${fmt(foundProject.revenue, 3)} M</strong><br>
       Margin: <strong>IDR ${fmt(foundProject.margin, 3)} M (${foundProject.pct}%)</strong><br>
-      Customer: ${foundProject.customer}<br>
-      PS: ${foundProject.ps}`;
+      Customer: ${escapeHtml(foundProject.customer)}<br>
+      PS: ${escapeHtml(foundProject.ps)}`;
   }
 
   // 2. Identify top/max margin searches
@@ -98,7 +99,7 @@ function chatFallback(q, d) {
         }
      }
      if (maxP) {
-         return `Margin tertinggi saat ini: <strong>${maxP.name}</strong> (${maxPMonth}) — <strong>IDR ${fmt(maxP.margin, 3)} M</strong> (${maxP.pct}%).<br>Customer: ${maxP.customer}`;
+         return `Margin tertinggi saat ini: <strong>${escapeHtml(maxP.name)}</strong> (${maxPMonth}) — <strong>IDR ${fmt(maxP.margin, 3)} M</strong> (${maxP.pct}%).<br>Customer: ${escapeHtml(maxP.customer)}`;
      }
   }
 
@@ -132,7 +133,7 @@ function chatFallback(q, d) {
       const b = BUDGET.margin[mIdx];
       const ach = m != null && b > 0 ? (m/b*100).toFixed(1) : '?';
       const chains = PS_CHAINS[mk] || [];
-      let pList = chains.map(c => `• ${c.name}: ${fmt(c.margin)} M (${c.pct}%)`).join('<br>');
+      let pList = chains.map(c => `• ${escapeHtml(c.name)}: ${fmt(c.margin)} M (${c.pct}%)`).join('<br>');
       if (!pList) pList = 'Belum ada data proyek / PS import.';
 
       return `<strong>${MONTHS[mIdx]} ${(typeof FILTER_YEAR!=='undefined') ? FILTER_YEAR : new Date().getFullYear()}:</strong><br>

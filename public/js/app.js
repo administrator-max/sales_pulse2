@@ -124,7 +124,7 @@ function _groupByProject(payloads) {
 
 function showUploadError(msg) {
   const warn = document.getElementById('upload-warning');
-  warn.innerHTML = '⚠️ ' + msg;
+  warn.innerHTML = '⚠️ ' + escapeHtml(msg);
   warn.style.display = 'block';
   document.getElementById('upload-preview-section').style.display = 'block';
   document.getElementById('upload-dropzone').style.display        = 'none';
@@ -175,6 +175,8 @@ function renderUploadPreview(errors) {
   let html = '';
   Object.values(_uploadGrouped).forEach((group) => {
     const { projectName, poDate, files } = group;
+    const safeProjectName = escapeHtml(projectName || '');
+    const safePoDate = escapeHtml(poDate || '—');
 
     // Month label from PO Date
     let monthLabel = '—';
@@ -199,21 +201,24 @@ function renderUploadPreview(errors) {
     const fileRows = files.map(f => {
       const h     = f.header;
       const isFx  = h.baseCurrency && h.baseCurrency !== 'IDR';
+      const safeCurrency = escapeHtml(h.baseCurrency || 'IDR');
       const fxStr = isFx
         ? `<div style="font-size:10px;color:var(--muted2);margin-top:3px;">
-             FX: ${Number(h.netMarginNative || 0).toLocaleString('id-ID')} ${h.baseCurrency}
+             FX: ${Number(h.netMarginNative || 0).toLocaleString('id-ID')} ${safeCurrency}
              &times; ${Number(h.fxToIDR || DEFAULT_FX_RATE).toLocaleString('id-ID')}
              = ${fmtM(h.marginIDR)}
            </div>`
         : '';
 
       // Item list (collapsed, show first 3)
-      const itemRows = f.items.slice(0, 3).map(it =>
-        `<div style="font-size:10px;color:var(--muted2);padding:3px 0;border-bottom:1px solid var(--border);">
-           <span style="color:var(--muted)">${it.material.substring(0,40)}${it.material.length>40?'…':''}</span>
+      const itemRows = f.items.slice(0, 3).map(it => {
+        const material = String(it.material || '');
+        const safeMaterial = escapeHtml(material.substring(0,40) + (material.length>40?'…':''));
+        return `<div style="font-size:10px;color:var(--muted2);padding:3px 0;border-bottom:1px solid var(--border);">
+           <span style="color:var(--muted)">${safeMaterial}</span>
            &nbsp;&mdash;&nbsp;${Number(it.totalWeight||0).toLocaleString('id-ID')} KG
-         </div>`
-      ).join('');
+         </div>`;
+      }).join('');
       const moreItems = f.items.length > 3
         ? `<div style="font-size:10px;color:var(--muted);padding:3px 0;">+${f.items.length-3} item lainnya</div>`
         : '';
@@ -222,13 +227,13 @@ function renderUploadPreview(errors) {
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:700;color:var(--text);">${h.psNumber}</div>
-              <div style="font-size:10px;color:var(--muted2);margin-top:2px;">${h.subsidiary || h.customerName || ''}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);">${escapeHtml(h.psNumber || '')}</div>
+              <div style="font-size:10px;color:var(--muted2);margin-top:2px;">${escapeHtml(h.subsidiary || h.customerName || '')}</div>
               ${fxStr}
             </div>
             <div style="text-align:right;margin-left:12px;flex-shrink:0;">
               <div style="font-family:inherit;font-size:16px;font-weight:700;color:var(--ok);">${fmtM(h.marginIDR)}</div>
-              <div style="font-size:10px;color:var(--muted2);">${(h.marginPct||0).toFixed(2)}% &middot; ${h.baseCurrency||'IDR'}</div>
+              <div style="font-size:10px;color:var(--muted2);">${(h.marginPct||0).toFixed(2)}% &middot; ${safeCurrency}</div>
             </div>
           </div>
           ${f.items.length > 0 ? `
@@ -256,9 +261,9 @@ function renderUploadPreview(errors) {
             <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${accentColor};margin-bottom:4px;">
               ${isMulti ? `🔗 INTERCOMPANY &middot; ${files.length} Subsidiaries` : '📄 Single PS'}
             </div>
-            <div style="font-family:inherit;font-size:15px;font-weight:700;color:var(--text);line-height:1.2;">${projectName}</div>
+            <div style="font-family:inherit;font-size:15px;font-weight:700;color:var(--text);line-height:1.2;">${safeProjectName}</div>
             <div style="font-size:11px;color:var(--muted2);margin-top:4px;">
-              PO Date: <strong style="color:var(--actual)">${poDate}</strong>
+              PO Date: <strong style="color:var(--actual)">${safePoDate}</strong>
               &rarr; <strong style="color:var(--actual)">${monthLabel}</strong>
               &nbsp;&middot;&nbsp; ${Math.round(totalWeightKg/1000).toLocaleString('id-ID')} MT
               &nbsp;&middot;&nbsp; ${files.reduce((s,f)=>s+f.items.length,0)} item
@@ -286,7 +291,7 @@ function renderUploadPreview(errors) {
     if (!p.header.margin) warns.push(`${p.header.psNumber}: Margin tidak terbaca`);
   });
   if (warns.length) {
-    warnEl.innerHTML = '⚠️ ' + warns.join('<br>⚠️ ');
+    warnEl.innerHTML = '⚠️ ' + warns.map(escapeHtml).join('<br>⚠️ ');
     warnEl.style.display = 'block';
   } else {
     warnEl.style.display = 'none';
@@ -382,10 +387,56 @@ function parseProjectSheetData(lines) {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
     let s = String(val).replace(/"/g, '').trim();
-    if (s.includes('%')) s = s.replace('%', '');
-    s = s.replace(/\./g, '').replace(',', '.');
-    if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1, -1);
-    return parseFloat(s) || 0;
+    const negative = s.startsWith('(') && s.endsWith(')');
+    s = s.replace(/[()%]/g, '').replace(/\s/g, '');
+    const match = s.match(/-?[\d.,]+/);
+    if (!match) return 0;
+    s = match[0];
+
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else if (hasComma) {
+      const parts = s.split(',');
+      s = parts.length === 2 && parts[1].length <= 3
+        ? parts[0] + '.' + parts[1]
+        : s.replace(/,/g, '');
+    } else if (hasDot) {
+      const parts = s.split('.');
+      if (parts.length > 2) {
+        s = parts.join('');
+      } else {
+        s = parts[1].length === 3 && parts[0].length <= 3
+          ? parts.join('')
+          : s;
+      }
+    }
+
+    const n = parseFloat(s.replace(/[^\d.-]/g, '')) || 0;
+    return negative ? -Math.abs(n) : n;
+  };
+  const normalizeDateValue = (val) => {
+    if (val === undefined || val === null || val === '') return '';
+    if (typeof val === 'number' || /^\d+(\.\d+)?$/.test(String(val).trim())) {
+      const serial = Number(val);
+      if (serial > 20000 && serial < 80000) {
+        const ms = Math.round((serial - 25569) * 86400 * 1000);
+        const d = new Date(ms);
+        if (!Number.isNaN(d.getTime())) {
+          return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+        }
+      }
+    }
+    const raw = String(val).trim();
+    const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    if (dmy) {
+      const yyyy = dmy[3].length === 2 ? '20' + dmy[3] : dmy[3];
+      return `${dmy[1].padStart(2,'0')}/${dmy[2].padStart(2,'0')}/${yyyy}`;
+    }
+    const ymd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (ymd) return `${ymd[3].padStart(2,'0')}/${ymd[2].padStart(2,'0')}/${ymd[1]}`;
+    return raw;
   };
   const get = (row, idx) => (row && row.length > idx) ? (row[idx] || '') : '';
 
@@ -402,7 +453,7 @@ function parseProjectSheetData(lines) {
     if (label === 'Subsidiary')                 header.subsidiary   = val;
     if (label === 'Customer Name')              header.customerName = val;
     if (label === 'Supplier Name')              header.supplierName = val;
-    if (label === 'PO Date')                    header.poDate       = val;
+    if (label === 'PO Date')                    header.poDate       = normalizeDateValue(get(row, 4));
     if (label === 'Currency')                   header.currency     = val;
 
     // FX row: "1 USD = IDR", "1 IDR = IDR", "1 SGD = IDR", dll
