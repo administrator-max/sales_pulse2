@@ -610,6 +610,7 @@ function getCustomerData() {
   const custMap = {};
   Object.values(getActiveChains()).forEach(chains => {
       chains.forEach(ch => {
+          if (isExcludedCompanyRankName(ch.customer)) return;
           if(!custMap[ch.customer]) custMap[ch.customer]={margin:0,revenue:0,projects:[],kg:0};
           custMap[ch.customer].margin  += ch.margin;
           custMap[ch.customer].revenue += ch.revenue;
@@ -655,6 +656,7 @@ function buildAnalytics() {
 
   const prodCats = getProdCategoryData();
   const totalMarginProd = prodCats.reduce((s,p)=>s+p.margin,0);
+  const totalRevenueProd = prodCats.reduce((s,p)=>s+p.revenue,0);
   const totalMTProd = prodCats.reduce((s,p)=>s+p.mt,0);
   
   const mpM = document.getElementById('mini-prod-margin');
@@ -663,6 +665,14 @@ function buildAnalytics() {
     <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} produk</div>
     <div class="mini-badges">
       ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
+    </div>`;
+
+  const mpR = document.getElementById('mini-prod-revenue');
+  if(mpR) mpR.innerHTML = `
+    <div class="mini-highlight" style="color:var(--brand-blue)">${totalRevenueProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
+    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · revenue produk</div>
+    <div class="mini-badges">
+      ${[...prodCats].sort((a,b)=>b.revenue-a.revenue).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.revenue.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
     </div>`;
 
   const mpQ = document.getElementById('mini-prod-qty');

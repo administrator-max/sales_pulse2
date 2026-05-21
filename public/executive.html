@@ -664,6 +664,31 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function normalizeCompanyRankName(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/&/g, ' AND ')
+    .replace(/\b(PT|CV|TBK|PTE|LTD|INC|CO|INDONESIA|INTL)\b\.?/g, ' ')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isExcludedCompanyRankName(name, exclusions) {
+  const normalized = normalizeCompanyRankName(name);
+  if (!normalized) return false;
+
+  const tokens = new Set(normalized.split(' '));
+  return (exclusions || []).some(row => {
+    const company = normalizeCompanyRankName(row.companyName || row.name);
+    const abbr = normalizeCompanyRankName(row.abbreviation || row.code);
+    if (abbr && (normalized === abbr || tokens.has(abbr))) return true;
+    return company && (normalized === company || normalized.includes(company));
+  });
+}
+
 function parseLocaleNumber(raw) {
   if (raw == null || raw === '') return 0;
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
@@ -878,10 +903,12 @@ function getProdRanking(indices, data) {
 
 function getCustRanking(indices, data) {
   const { PS_CHAINS } = data;
+  const exclusions = data.COMPANY_RANK_EXCLUSIONS || [];
   const custs = {};
   indices.forEach(i => {
     const mk = MONTH_KEYS[i];
     (PS_CHAINS[mk] || []).forEach(ch => {
+      if (isExcludedCompanyRankName(ch.customer, exclusions)) return;
       const name = (ch.customer || 'Unknown')
         .replace('PT. ','').replace(' Indonesia','').replace(' Intl','');
       if (!custs[name]) custs[name] = { name, margin:0, revenue:0 };

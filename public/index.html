@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="/css/style.css?v=20260520-ui">
+<link rel="stylesheet" href="/css/style.css?v=20260521-prod-revenue">
 </head>
 <body>
 <div class="page">
@@ -130,13 +130,15 @@
 
   <div class="card analytics-mini" id="card-prod" style="cursor:pointer;">
     <div class="card-head" style="padding:12px 16px;">
-      <div class="card-title" style="pointer-events:none;"><span class="dot" style="background:var(--brand-dark)"></span>Per Product · Margin</div>
+      <div class="card-title" style="pointer-events:none;"><span class="dot" style="background:var(--brand-dark)"></span><span id="prod-card-title">Per Product · Margin</span></div>
       <div style="display:flex;gap:2px;background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:2px;pointer-events:auto;" onclick="event.stopPropagation()">
-        <button id="prod-tab-margin" class="qty-tab-btn active" onclick="switchProdTab('margin')" style="font-size:11px;padding:3px 9px;">Margin</button>
-        <button id="prod-tab-qty"    class="qty-tab-btn"        onclick="switchProdTab('qty')"    style="font-size:11px;padding:3px 9px;">Qty</button>
+        <button id="prod-tab-margin"  class="qty-tab-btn active" onclick="switchProdTab('margin')"  style="font-size:11px;padding:3px 8px;">Margin</button>
+        <button id="prod-tab-revenue" class="qty-tab-btn"        onclick="switchProdTab('revenue')" style="font-size:11px;padding:3px 8px;">Revenue</button>
+        <button id="prod-tab-qty"     class="qty-tab-btn"        onclick="switchProdTab('qty')"     style="font-size:11px;padding:3px 8px;">Qty</button>
       </div>
     </div>
     <div style="padding:14px 16px 16px;" id="mini-prod-margin" onclick="openAnalyticsModal('prod-margin')"></div>
+    <div style="padding:14px 16px 16px;display:none;" id="mini-prod-revenue" onclick="openAnalyticsModal('prod-revenue')"></div>
     <div style="padding:14px 16px 16px;display:none;" id="mini-prod-qty" onclick="openAnalyticsModal('prod-qty')"></div>
   </div>
 
@@ -629,12 +631,12 @@
   </div>
 </div>
 
-<script src="/js/state.js?v=20260520-ui"></script>
-<script src="/js/ui.js?v=20260520-ui"></script>
-<script src="/js/modals.js?v=20260520-ui"></script>
-<script src="/js/budget.js?v=20260520-ui"></script>
-<script src="/js/chat.js?v=20260520-ui"></script>
-<script src="/js/app.js?v=20260520-ui"></script>
+<script src="/js/state.js?v=20260521-prod-revenue"></script>
+<script src="/js/ui.js?v=20260521-prod-revenue"></script>
+<script src="/js/modals.js?v=20260521-prod-revenue"></script>
+<script src="/js/budget.js?v=20260521-prod-revenue"></script>
+<script src="/js/chat.js?v=20260521-prod-revenue"></script>
+<script src="/js/app.js?v=20260521-prod-revenue"></script>
 
 
 <!-- kpi-att floating tooltip — fixed to body so it is never clipped -->

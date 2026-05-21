@@ -1,10 +1,15 @@
 // ── ANALYTICS MODAL LOGIC ──
 function switchProdTab(tab) {
   document.getElementById('mini-prod-margin').style.display = tab==='margin' ? 'block' : 'none';
+  document.getElementById('mini-prod-revenue').style.display = tab==='revenue' ? 'block' : 'none';
   document.getElementById('mini-prod-qty').style.display = tab==='qty' ? 'block' : 'none';
   document.getElementById('prod-tab-margin').classList.toggle('active', tab==='margin');
+  document.getElementById('prod-tab-revenue').classList.toggle('active', tab==='revenue');
   document.getElementById('prod-tab-qty').classList.toggle('active', tab==='qty');
-  document.getElementById('card-prod').onclick = ()=>openAnalyticsModal(tab==='margin' ? 'prod-margin' : 'prod-qty');
+  const title = document.getElementById('prod-card-title');
+  if (title) title.textContent = 'Per Product · ' + (tab === 'qty' ? 'Qty' : tab === 'revenue' ? 'Revenue' : 'Margin');
+  const modalType = tab === 'qty' ? 'prod-qty' : tab === 'revenue' ? 'prod-revenue' : 'prod-margin';
+  document.getElementById('card-prod').onclick = ()=>openAnalyticsModal(modalType);
 }
 
 function switchCustTab(tab) {
@@ -16,7 +21,7 @@ function switchCustTab(tab) {
 }
 
 function openAnalyticsModal(type) {
-  const titles = { 'qty':'📦 Qty Actual vs Budget', 'prod-margin':'📊 Per Product · Margin', 'prod-qty':'📊 Per Product · Volume (MT)', 'cust-margin':'🏆 Top Customers · by Margin', 'cust-qty':'🏋 Top Customers · by Qty' };
+  const titles = { 'qty':'📦 Qty Actual vs Budget', 'prod-margin':'📊 Per Product · Margin', 'prod-revenue':'📊 Per Product · Revenue', 'prod-qty':'📊 Per Product · Volume (MT)', 'cust-margin':'🏆 Top Customers · by Margin', 'cust-qty':'🏋 Top Customers · by Qty' };
   document.getElementById('analytics-modal-title').textContent = titles[type]||'';
   document.getElementById('analytics-modal-content').innerHTML = buildAnalyticsDetail(type);
   document.getElementById('analytics-modal-overlay').style.display = 'flex';
@@ -73,23 +78,37 @@ function buildAnalyticsDetail(type) {
       return h;
   }
 
-  if(type==='prod-margin'||type==='prod-qty') {
+  if(type==='prod-margin'||type==='prod-revenue'||type==='prod-qty') {
       const cats = getProdCategoryData();
       const totalMargin = cats.reduce((s,p)=>s+p.margin,0);
+      const totalRevenue = cats.reduce((s,p)=>s+p.revenue,0);
       const totalMT     = cats.reduce((s,p)=>s+p.mt,0);
       const maxM = Math.max(...cats.map(p=>p.margin), 1);
+      const maxRevenue = Math.max(...cats.map(p=>p.revenue), 1);
       const maxMT= Math.max(...cats.map(p=>p.mt), 1);
-      const sortedCats = type==='prod-qty' ? [...cats].sort((a,b)=>b.mt-a.mt) : [...cats].sort((a,b)=>b.margin-a.margin);
+      const sortedCats = type==='prod-qty'
+        ? [...cats].sort((a,b)=>b.mt-a.mt)
+        : type==='prod-revenue'
+          ? [...cats].sort((a,b)=>b.revenue-a.revenue)
+          : [...cats].sort((a,b)=>b.margin-a.margin);
+      const totalValue = type==='prod-qty' ? `${fmtN(totalMT)} MT` : type==='prod-revenue' ? `${fmt2(totalRevenue)} MIDR` : `${fmt2(totalMargin)} MIDR`;
+      const totalColor = type==='prod-qty' ? 'var(--brand-dark)' : type==='prod-revenue' ? 'var(--actual)' : 'var(--ok)';
+      const totalSub = type==='prod-qty'
+        ? `Volume dari ${fmt2(totalRevenue)} MIDR revenue`
+        : type==='prod-revenue'
+          ? `Revenue dari ${fmtN(totalMT)} MT volume`
+          : `Margin dari ${fmtN(totalMT)} MT volume`;
       let h=`<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Total YTD</div>
-            <div style="font-family:inherit;font-size:36px;font-weight:700;color:var(--ok);line-height:1">${fmt2(totalMargin)} MIDR</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Margin dari ${fmtN(totalMT)} MT volume</div>
+            <div style="font-family:inherit;font-size:36px;font-weight:700;color:${totalColor};line-height:1">${totalValue}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">${totalSub}</div>
           </div>
         </div></div>`;
       sortedCats.forEach(p=>{
         const marginW=(p.margin/maxM*100).toFixed(1);
+        const revenueW=(p.revenue/maxRevenue*100).toFixed(1);
         const mtW=(p.mt/maxMT*100).toFixed(1);
         const avgPct=p.revenue>0?(p.margin/p.revenue*100).toFixed(2):0;
         const pc=avgPct>=12?'var(--ok)':avgPct>=8?'var(--warn)':'var(--over)';
@@ -118,6 +137,8 @@ function buildAnalyticsDetail(type) {
           <div style="margin-bottom:5px;">
             <div style="height:6px;background:var(--s3);border-radius:99px;overflow:hidden;margin-bottom:6px;">
               <div style="height:100%;width:${marginW}%;background:var(--brand-green);border-radius:99px;"></div></div>
+            <div style="height:6px;background:var(--s3);border-radius:99px;overflow:hidden;margin-bottom:6px;">
+              <div style="height:100%;width:${revenueW}%;background:var(--actual);border-radius:99px;"></div></div>
             <div style="height:6px;background:var(--s3);border-radius:99px;overflow:hidden;">
               <div style="height:100%;width:${mtW}%;background:${p.color};border-radius:99px;"></div></div>
           </div>
