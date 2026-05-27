@@ -247,19 +247,9 @@
     .rank-panels { display:grid; grid-template-columns:1fr 1fr; }
     .rank-panel  { padding:16px 20px; border-right:1px solid var(--border); }
     .rank-panel:last-child { border-right:none; }
-    .rank-panel-header {
-      display:flex; justify-content:space-between; align-items:baseline;
-      margin-bottom:14px; padding-bottom:10px;
-      border-bottom:2px solid;
-    }
-    .rank-panel-header.blue  { border-color:var(--brand-blue); }
-    .rank-panel-header.green { border-color:var(--brand-green-dark); }
-    .rank-panel-header.red   { border-color:var(--muted); }     /* no red — gray for "bottom" panel */
-    .rank-period { font-family:inherit; font-size:14px; font-weight:700; color:var(--text); }
-    .rank-date   { font-size:11px; color:var(--muted); font-weight:400; }
     .rank-item {
       display:flex; align-items:center; gap:12px;
-      padding:10px 0; border-bottom:1px solid var(--border);
+      padding:8px 0; border-bottom:1px solid var(--border);
     }
     .rank-item:last-child { border-bottom:none; padding-bottom:0; }
     .rank-num {
@@ -510,74 +500,50 @@
     <div class="carousel-body">
       <div class="carousel-slides" id="carousel-slides">
 
-        <!-- Slide 1: TOP 3 PRODUCTS -->
+        <!-- Slide 1: TOP 6 YTD PRODUCTS BY MARGIN -->
         <div class="carousel-slide">
           <div class="slide-bar top-products">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            TOP 3 PRODUCTS
+            TOP 6 YTD PRODUCTS · MARGIN
           </div>
           <div class="rank-panels">
             <div class="rank-panel">
-              <div class="rank-panel-header green">
-                <div class="rank-period">MTD</div>
-                <div class="rank-date" id="top-prod-mtd-date">—</div>
-              </div>
-              <div id="top-prod-mtd-list"></div>
-            </div>
-            <div class="rank-panel">
-              <div class="rank-panel-header green">
-                <div class="rank-period">YTD</div>
-                <div class="rank-date" id="top-prod-ytd-date">—</div>
-              </div>
               <div id="top-prod-ytd-list"></div>
             </div>
-          </div>
-        </div>
-
-        <!-- Slide 2: BOTTOM 3 PRODUCTS -->
-        <div class="carousel-slide">
-          <div class="slide-bar bot-products">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-            BOTTOM 3 PRODUCTS
-          </div>
-          <div class="rank-panels">
             <div class="rank-panel">
-              <div class="rank-panel-header red">
-                <div class="rank-period">MTD</div>
-                <div class="rank-date" id="bot-prod-mtd-date">—</div>
-              </div>
-              <div id="bot-prod-mtd-list"></div>
-            </div>
-            <div class="rank-panel">
-              <div class="rank-panel-header red">
-                <div class="rank-period">YTD</div>
-                <div class="rank-date" id="bot-prod-ytd-date">—</div>
-              </div>
-              <div id="bot-prod-ytd-list"></div>
+              <div id="top-prod-ytd-list-b"></div>
             </div>
           </div>
         </div>
 
-        <!-- Slide 3: TOP 3 CUSTOMERS -->
+        <!-- Slide 2: TOP 6 YTD CUSTOMERS BY MARGIN -->
         <div class="carousel-slide">
           <div class="slide-bar top-customers">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            TOP 3 CUSTOMERS
+            TOP 6 YTD CUSTOMERS · MARGIN
           </div>
           <div class="rank-panels">
             <div class="rank-panel">
-              <div class="rank-panel-header blue">
-                <div class="rank-period">MTD</div>
-                <div class="rank-date" id="top-cust-mtd-date">—</div>
-              </div>
-              <div id="top-cust-mtd-list"></div>
+              <div id="top-cust-ytd-list"></div>
             </div>
             <div class="rank-panel">
-              <div class="rank-panel-header blue">
-                <div class="rank-period">YTD</div>
-                <div class="rank-date" id="top-cust-ytd-date">—</div>
-              </div>
-              <div id="top-cust-ytd-list"></div>
+              <div id="top-cust-ytd-list-b"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3: BOTTOM 6 YTD PRODUCTS -->
+        <div class="carousel-slide">
+          <div class="slide-bar bot-products">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+            BOTTOM 6 YTD PRODUCTS · ACHIEVEMENT
+          </div>
+          <div class="rank-panels">
+            <div class="rank-panel">
+              <div id="bot-prod-ytd-list"></div>
+            </div>
+            <div class="rank-panel">
+              <div id="bot-prod-ytd-list-b"></div>
             </div>
           </div>
         </div>
@@ -822,9 +788,9 @@ function rankItemHTML(item, rank, colorCls) {
       </div>
     </div>`;
 }
-function rankListHTML(items, colorCls) {
+function rankListHTML(items, colorCls, offset = 0) {
   if (!items || items.length === 0) return '<div class="rank-empty">Belum ada data</div>';
-  return items.map((item, i) => rankItemHTML(item, i+1, colorCls)).join('');
+  return items.map((item, i) => rankItemHTML(item, i + 1 + offset, colorCls)).join('');
 }
 
 // ── Floating tooltip ───────────────────────────────────────────────────────────
@@ -996,32 +962,32 @@ function render() {
   // ── CAROUSEL: Margin Performance Highlights ───────────────────────────────────
   // Products = projects grouped by name, margin = net margin MIDR from PS_CHAINS
   // Customers = customer names from PS_CHAINS
-  const mtdProds  = getProdRanking([mtdIdx], DATA);
   const ytdProds  = getProdRanking(ytdIndices, DATA);
-  const mtdCusts  = getCustRanking([mtdIdx], DATA);
   const ytdCusts  = getCustRanking(ytdIndices, DATA);
 
   // Filter "ada nilainya" — actual margin > 0
-  const mtdActive = mtdProds.filter(p => (p.margin || 0) > 0);
-  const ytdActive = ytdProds.filter(p => (p.margin || 0) > 0);
+  const ytdActive = ytdProds
+    .filter(p => (p.margin || 0) > 0)
+    .sort((a, b) => b.margin - a.margin);
 
-  // Top 3 Products — sorted desc (Infinity di atas), slice top 3
-  document.getElementById('top-prod-mtd-list').innerHTML = rankListHTML(mtdActive.slice(0, 3), 'green');
+  // Top 6 YTD Products by actual margin
   document.getElementById('top-prod-ytd-list').innerHTML = rankListHTML(ytdActive.slice(0, 3), 'green');
+  document.getElementById('top-prod-ytd-list-b').innerHTML = rankListHTML(ytdActive.slice(3, 6), 'green', 3);
 
-  // Bottom 3 Products — hanya yang punya budget (untuk "achievement" yang valid),
-  // sort asc by pct
-  const bottomSet = arr => arr
-    .filter(p => p.budgetMargin > 0)
-    .sort((a, b) => (a.pct || 0) - (b.pct || 0));
-  document.getElementById('bot-prod-mtd-list').innerHTML = rankListHTML(bottomSet(mtdActive).slice(0, 3), 'red');
-  document.getElementById('bot-prod-ytd-list').innerHTML = rankListHTML(bottomSet(ytdActive).slice(0, 3), 'red');
+  // Bottom 6 YTD Products by lowest achievement against margin budget.
+  const ytdBottomActive = ytdProds
+    .filter(p => (p.margin || 0) > 0 && (p.budgetMargin || 0) > 0)
+    .sort((a, b) => (a.pct ?? Infinity) - (b.pct ?? Infinity));
+  document.getElementById('bot-prod-ytd-list').innerHTML = rankListHTML(ytdBottomActive.slice(0, 3), 'red');
+  document.getElementById('bot-prod-ytd-list-b').innerHTML = rankListHTML(ytdBottomActive.slice(3, 6), 'red', 3);
 
-  // Top 3 Customers — filter customer yang punya margin > 0
-  const mtdCustActive = mtdCusts.filter(c => (c.margin || 0) > 0).map(c => ({...c, name: shorten(c.name, 28)}));
-  const ytdCustActive = ytdCusts.filter(c => (c.margin || 0) > 0).map(c => ({...c, name: shorten(c.name, 28)}));
-  document.getElementById('top-cust-mtd-list').innerHTML = rankListHTML(mtdCustActive.slice(0, 3), 'blue');
+  // Top 6 YTD Customers by actual margin
+  const ytdCustActive = ytdCusts
+    .filter(c => (c.margin || 0) > 0)
+    .sort((a, b) => b.margin - a.margin)
+    .map(c => ({...c, name: shorten(c.name, 28)}));
   document.getElementById('top-cust-ytd-list').innerHTML = rankListHTML(ytdCustActive.slice(0, 3), 'blue');
+  document.getElementById('top-cust-ytd-list-b').innerHTML = rankListHTML(ytdCustActive.slice(3, 6), 'blue', 3);
 }
 
 // ── Fetch data ─────────────────────────────────────────────────────────────────
