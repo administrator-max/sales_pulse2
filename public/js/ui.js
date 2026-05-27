@@ -450,18 +450,19 @@ function buildTable() {
   // Total row
   const tr = document.createElement('tr');
   tr.classList.add('total-row');
-  const reported = ACTUAL.margin.filter(v=>v!=null).length;
-  const ytdBgt = BUDGET.margin.slice(0,Math.max(reported,1)).reduce((a,b)=>a+b,0);
-  const ytdPct = totActual>0 && ytdBgt > 0?(totActual/ytdBgt*100).toFixed(1):null;
-  const col = ytdPct!=null?(ytdPct>=80?'var(--brand-green-dark)':ytdPct>=30?'var(--brand-blue)':'var(--muted)'):'var(--muted)';
-  const bw  = ytdPct!=null?Math.min(parseFloat(ytdPct),100).toFixed(1):0;
+  const totalLabel = (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && typeof MONTHS !== 'undefined')
+    ? `${MONTHS[FILTER_MONTH]} TOTAL`
+    : 'FULL YEAR';
+  const totalPct = totActual>0 && totBudget > 0?(totActual/totBudget*100).toFixed(1):null;
+  const col = totalPct!=null?(totalPct>=80?'var(--brand-green-dark)':totalPct>=30?'var(--brand-blue)':'var(--muted)'):'var(--muted)';
+  const bw  = totalPct!=null?Math.min(parseFloat(totalPct),100).toFixed(1):0;
   tr.innerHTML = `
-    <td>FULL YEAR</td>
+    <td>${totalLabel}</td>
     <td>${fmt(totBudget,2)}</td>
     <td>${totActual>0?fmt(totActual,2):'—'}</td>
     <td>${totPlan>0?fmt(totPlan,2):'—'}</td>
     <td>—</td>
-    <td>${ytdPct!=null?`<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:inherit;font-size:15px;font-weight:700;color:${col};line-height:1">${ytdPct}%</span><span style="font-size:10px;color:var(--muted);font-weight:400;">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bw}%;background:${col};border-radius:99px"></div></div></div>`:'—'}</td>
+    <td>${totalPct!=null?`<div style="min-width:130px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px"><span style="font-family:inherit;font-size:15px;font-weight:700;color:${col};line-height:1">${totalPct}%</span><span style="font-size:10px;color:var(--muted);font-weight:400;">vs budget</span></div><div style="height:4px;background:var(--s3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bw}%;background:${col};border-radius:99px"></div></div></div>`:'—'}</td>
     <td>${totActual>0?fmt(totActual-totBudget,2):'—'}</td>
   `;
   tbody.appendChild(tr);
@@ -488,31 +489,34 @@ function buildWaterfall() {
 }
 
 function updateKPIs() {
-  // Filter-aware: jika FILTER_MONTH != -1, hanya hitung bulan yang dipilih
-  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
-  const indices = fm === -1 ? Array.from({length:12},(_,i)=>i) : [fm];
+  const indices = typeof getAnalyticsMonthIndices === 'function'
+    ? getAnalyticsMonthIndices()
+    : Array.from({length:12},(_,i)=>i);
+  const periodLabel = typeof getAnalyticsPeriodLabel === 'function'
+    ? getAnalyticsPeriodLabel()
+    : 'YTD';
+  const isMtd = typeof ANALYTICS_PERIOD_MODE !== 'undefined' && ANALYTICS_PERIOD_MODE === 'mtd';
+  const reportedSet = typeof getReportedMonthIndices === 'function'
+    ? new Set(getReportedMonthIndices())
+    : new Set(ACTUAL.margin.map((v,i)=>v!=null?i:-1).filter(i=>i>=0));
 
   const filtMargin  = indices.map(i => ACTUAL.margin[i]);
   const filtBudget  = indices.map(i => BUDGET.margin[i]);
-  const ytdActual   = sum(filtMargin);
+  const actualValue = sum(filtMargin);
   const totalBudget = filtBudget.reduce((a,b)=>a+(b||0),0);
-  const reported    = filtMargin.filter(v=>v!=null).length;
-  const periodLabel = fm === -1 ? 'YTD' : (typeof _MS !== 'undefined' ? _MS[fm] : MONTHS[fm]);
+  const reported    = indices.filter(i => reportedSet.has(i)).length;
 
   document.getElementById('kpi-budget').textContent = fmt(totalBudget,2);
-  document.getElementById('kpi-actual').textContent = ytdActual > 0 ? fmt(ytdActual,2) : '—';
-  document.getElementById('kpi-actual-sub').textContent = ytdActual > 0 ? periodLabel : 'No data yet';
-  document.getElementById('kpi-reported').textContent = fm === -1 ? (reported + ' / 12') : (reported > 0 ? 'Reported' : 'Not reported');
+  document.getElementById('kpi-actual').textContent = actualValue > 0 ? fmt(actualValue,2) : '—';
+  document.getElementById('kpi-actual-sub').textContent = actualValue > 0 ? periodLabel : 'No data yet';
+  document.getElementById('kpi-reported').textContent = isMtd ? (reported > 0 ? 'Reported' : 'Not reported') : (reported + ' / 12');
   document.getElementById('footer-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
 
   const attEl  = document.getElementById('kpi-att');
   const attTip = document.getElementById('kpi-att-tip');
-  if (ytdActual > 0 && totalBudget > 0) {
-    const att    = (ytdActual / totalBudget * 100).toFixed(1);
+  if (actualValue > 0 && totalBudget > 0) {
+    const att    = (actualValue / totalBudget * 100).toFixed(1);
     const color  = att>=80 ? 'var(--brand-green-dark)' : att>=30 ? 'var(--brand-blue)' : 'var(--muted)';
-    const period = (typeof FILTER_MONTH !== 'undefined' && FILTER_MONTH !== -1 && typeof _MS !== 'undefined')
-      ? _MS[FILTER_MONTH] + ' ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '')
-      : 'YTD ' + (typeof FILTER_YEAR !== 'undefined' ? FILTER_YEAR : '');
     if (attEl) {
       attEl.textContent  = att + '%';
       attEl.className    = 'kpi-delta ' + (att>=80 ? 'delta-good' : att>=30 ? 'delta-na' : 'delta-bad');
@@ -521,8 +525,8 @@ function updateKPIs() {
       attTip.innerHTML = `
         <div style="padding-top:2px;">
           <div style="display:flex;justify-content:space-between;gap:16px;">
-            <span>Actual (${period})</span>
-            <span style="color:var(--brand-blue);font-weight:700;">${fmt(ytdActual,2)} MIDR</span>
+            <span>Actual (${periodLabel})</span>
+            <span style="color:var(--brand-blue);font-weight:700;">${fmt(actualValue,2)} MIDR</span>
           </div>
           <div style="display:flex;justify-content:space-between;gap:16px;">
             <span>Budget target</span>
@@ -539,9 +543,10 @@ function updateKPIs() {
     if (attTip) attTip.innerHTML = '<div style="color:var(--muted);">Belum ada data aktual untuk periode ini.</div>';
   }
 
-  // Best month (always across all months for context)
+  // Best month in the same YTD/MTD period as the summary cards.
   let bestIdx = -1, bestPct = -1;
-  ACTUAL.margin.forEach((v,i) => {
+  indices.forEach(i => {
+    const v = ACTUAL.margin[i];
     if (v == null) return;
     const b = BUDGET.margin[i];
     if (b) { const p = (v/b)*100; if (p > bestPct) { bestPct = p; bestIdx = i; } }
@@ -561,22 +566,33 @@ function getActiveMonthKeys() {
   return [MONTH_KEYS[fm]];                             // Specific month
 }
 
-function getActiveChains() {
-  const keys = getActiveMonthKeys();
+function getMonthKeysFromIndices(indices) {
+  return (indices || []).map(i => MONTH_KEYS[i]).filter(Boolean);
+}
+
+function getChainsForMonthIndices(indices) {
+  const keys = getMonthKeysFromIndices(indices);
   const result = {};
   keys.forEach(mk => { if (PS_CHAINS[mk]) result[mk] = PS_CHAINS[mk]; });
   return result;
 }
 
-function getActiveQtyData() {
-  const keys = getActiveMonthKeys();
+function getQtyDataForMonthIndices(indices) {
+  const keys = getMonthKeysFromIndices(indices);
   const result = {};
   keys.forEach(mk => { if (QTY_DATA[mk]) result[mk] = QTY_DATA[mk]; });
   return result;
 }
 
-function getProdCategoryData() {
-  const indices = getActiveMonthIndices();
+function getActiveChains() {
+  return getChainsForMonthIndices(getActiveMonthIndices());
+}
+
+function getActiveQtyData() {
+  return getQtyDataForMonthIndices(getActiveMonthIndices());
+}
+
+function getProdCategoryData(indices = getAnalyticsMonthIndices()) {
   const products = getCanonicalProductNames();
   const rows = products.map((product, idx) => ({
     key: product,
@@ -592,7 +608,7 @@ function getProdCategoryData() {
   }));
   const byProduct = Object.fromEntries(rows.map(row => [row.key, row]));
 
-  Object.values(getActiveChains()).forEach(chains => {
+  Object.values(getChainsForMonthIndices(indices)).forEach(chains => {
     chains.forEach(ch => {
       const product = ch.product;
       if (!product || !byProduct[product]) return;
@@ -606,9 +622,9 @@ function getProdCategoryData() {
   );
 }
 
-function getCustomerData() {
+function getCustomerData(indices = getAnalyticsMonthIndices()) {
   const custMap = {};
-  Object.values(getActiveChains()).forEach(chains => {
+  Object.values(getChainsForMonthIndices(indices)).forEach(chains => {
       chains.forEach(ch => {
           if (isExcludedCompanyRankName(ch.customer)) return;
           if(!custMap[ch.customer]) custMap[ch.customer]={margin:0,revenue:0,projects:[],kg:0};
@@ -617,7 +633,7 @@ function getCustomerData() {
           if (!custMap[ch.customer].projects.includes(ch.name)) custMap[ch.customer].projects.push(ch.name);
       });
   });
-  Object.values(getActiveQtyData()).forEach(projs => {
+  Object.values(getQtyDataForMonthIndices(indices)).forEach(projs => {
       projs.forEach(p => {
           if(custMap[p.customer]) custMap[p.customer].kg += weightToMT(p.totalWeight) * 1000;
       });
@@ -625,32 +641,152 @@ function getCustomerData() {
   return custMap;
 }
 
+function exportDashboardExcel(mode = ANALYTICS_PERIOD_MODE) {
+  if (typeof XLSX === 'undefined') {
+    showToast('Excel export library belum siap', true);
+    return;
+  }
+
+  const exportMode = mode === 'mtd' ? 'mtd' : 'ytd';
+  const indices = getAnalyticsMonthIndices(exportMode);
+  const periodLabel = getAnalyticsPeriodLabel(exportMode);
+  const modeLabel = exportMode.toUpperCase();
+  const products = getProdCategoryData(indices).sort((a, b) => b.margin - a.margin);
+  const customers = Object.entries(getCustomerData(indices))
+    .map(([name, data]) => ({ name, ...data, marginPct: data.revenue > 0 ? data.margin / data.revenue * 100 : 0 }))
+    .sort((a, b) => b.margin - a.margin);
+  const budgetQty = getBudgetQtyMonthly();
+  const actualVolumeForMonth = (idx) =>
+    getCanonicalProductNames().reduce((s, product) => s + getActualProductVolume(product, idx), 0);
+
+  const totalMargin = products.reduce((s, p) => s + p.margin, 0);
+  const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
+  const totalVolume = products.reduce((s, p) => s + p.mt, 0);
+  const totalBudgetMargin = products.reduce((s, p) => s + p.budgetMargin, 0);
+  const totalBudgetRevenue = products.reduce((s, p) => s + p.budgetRevenue, 0);
+  const totalBudgetVolume = products.reduce((s, p) => s + p.budgetMT, 0);
+
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, rows) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  };
+
+  addSheet('Summary', [
+    ['Sales Pulse Export'],
+    ['Mode', modeLabel],
+    ['Period', periodLabel],
+    ['Year', FILTER_YEAR],
+    [],
+    ['Metric', 'Actual', 'Budget', 'Achievement %'],
+    ['Margin (MIDR)', totalMargin, totalBudgetMargin, totalBudgetMargin > 0 ? totalMargin / totalBudgetMargin * 100 : null],
+    ['Revenue (MIDR)', totalRevenue, totalBudgetRevenue, totalBudgetRevenue > 0 ? totalRevenue / totalBudgetRevenue * 100 : null],
+    ['Volume (MT)', totalVolume, totalBudgetVolume, totalBudgetVolume > 0 ? totalVolume / totalBudgetVolume * 100 : null],
+    ['Product Count', products.length, '', ''],
+    ['Customer Count', customers.length, '', ''],
+  ]);
+
+  addSheet('Products', [
+    ['Rank', 'Product', 'Margin MIDR', 'Revenue MIDR', 'Volume MT', 'Budget Margin MIDR', 'Budget Revenue MIDR', 'Budget Volume MT', 'Margin %', 'Projects'],
+    ...products.map((p, idx) => [
+      idx + 1,
+      p.label,
+      p.margin,
+      p.revenue,
+      p.mt,
+      p.budgetMargin,
+      p.budgetRevenue,
+      p.budgetMT,
+      p.revenue > 0 ? p.margin / p.revenue * 100 : null,
+      p.projects.join(' | '),
+    ]),
+  ]);
+
+  addSheet('Customers', [
+    ['Rank', 'Customer', 'Margin MIDR', 'Revenue MIDR', 'Volume MT', 'Margin %', 'Projects'],
+    ...customers.map((c, idx) => [
+      idx + 1,
+      c.name,
+      c.margin,
+      c.revenue,
+      c.kg / 1000,
+      c.marginPct,
+      c.projects.join(' | '),
+    ]),
+  ]);
+
+  addSheet('Monthly Detail', [
+    ['Month', 'Actual Margin MIDR', 'Budget Margin MIDR', 'Actual Revenue MIDR', 'Budget Revenue MIDR', 'Actual Volume MT', 'Budget Volume MT', 'Margin Achievement %', 'Volume Achievement %'],
+    ...indices.map(i => {
+      const actualVol = actualVolumeForMonth(i);
+      const budgetVol = budgetQty[i] || 0;
+      return [
+        `${MONTHS[i]} ${FILTER_YEAR}`,
+        ACTUAL.margin[i] || 0,
+        BUDGET.margin[i] || 0,
+        ACTUAL.revenue[i] || 0,
+        BUDGET.revenue[i] || 0,
+        actualVol,
+        budgetVol,
+        BUDGET.margin[i] > 0 ? (ACTUAL.margin[i] || 0) / BUDGET.margin[i] * 100 : null,
+        budgetVol > 0 ? actualVol / budgetVol * 100 : null,
+      ];
+    }),
+  ]);
+
+  const volumeByProject = {};
+  Object.entries(getQtyDataForMonthIndices(indices)).forEach(([mk, projectsForMonth]) => {
+    projectsForMonth.forEach(p => {
+      volumeByProject[`${mk}__${p.name}`] = weightToMT(p.totalWeight);
+    });
+  });
+  const projectRows = [];
+  Object.entries(getChainsForMonthIndices(indices)).forEach(([mk, chains]) => {
+    chains.forEach(ch => {
+      projectRows.push([
+        `${mk.charAt(0).toUpperCase()}${mk.slice(1)} ${FILTER_YEAR}`,
+        ch.name,
+        ch.customer,
+        ch.product || '',
+        ch.segment || '',
+        ch.revenue || 0,
+        ch.margin || 0,
+        ch.pct || 0,
+        volumeByProject[`${mk}__${ch.name}`] || 0,
+        ch.ps || '',
+      ]);
+    });
+  });
+  addSheet('Projects', [
+    ['Month', 'Project', 'Customer', 'Product', 'Segment', 'Revenue MIDR', 'Margin MIDR', 'Margin %', 'Volume MT', 'PS Number'],
+    ...projectRows,
+  ]);
+
+  const safePeriod = periodLabel.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  XLSX.writeFile(wb, `Sales Pulse ${FILTER_YEAR} ${modeLabel} ${safePeriod}.xlsx`);
+  showToast(`Export Excel ${modeLabel} dibuat`);
+}
+
 function buildAnalytics() {
+  const activeIndices = getAnalyticsMonthIndices();
+  const periodLabel = getAnalyticsPeriodLabel();
+  const modeLabel = ANALYTICS_PERIOD_MODE.toUpperCase();
+  const periodContext = document.getElementById('analytics-period-context');
+  if (periodContext) periodContext.textContent = `${modeLabel} · ${periodLabel}`;
+
   const mq = document.getElementById('mini-qty');
   if(mq) {
-    const fm          = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
-    const periodLabel = fm === -1 ? 'YTD' : (typeof _MS !== 'undefined' ? _MS[fm] : MONTH_KEYS[fm]);
-    const activeIndices = getActiveMonthIndices();
-    const activeKeys = activeIndices.map(i => MONTH_KEYS[i]);
     const chartProducts = getCanonicalProductNames();
     const actualMTForMonth = (idx) => chartProducts.reduce((s, product) => s + getActualProductVolume(product, idx), 0);
     const totalMT = activeIndices.reduce((s, idx) => s + actualMTForMonth(idx), 0);
     const budgetMonthly = getBudgetQtyMonthly();
-    const totalBudgMT = fm === -1
-      ? budgetMonthly.reduce((a,b)=>a+b,0)
-      : (budgetMonthly[fm] || 0);
+    const totalBudgMT = activeIndices.reduce((s, idx) => s + (budgetMonthly[idx] || 0), 0);
     const totalPct = totalBudgMT > 0 ? (totalMT/totalBudgMT*100) : 0;
     const pctColor = totalPct>=100?'var(--brand-green-dark)':totalPct>=50?'var(--brand-blue)':'var(--muted)';
 
     mq.innerHTML = `
       <div class="mini-highlight" style="color:var(--brand-blue)">${Math.round(totalMT).toLocaleString('id-ID')} MT</div>
-      <div class="mini-sub">of ${totalBudgMT.toLocaleString('id-ID')} MT · <span style="color:${pctColor};font-weight:700">${totalPct.toFixed(1)}%</span></div>
-      <div class="mini-badges">
-        ${activeKeys.map((mk, pos) => {
-            const mt = actualMTForMonth(activeIndices[pos]);
-            return mt > 0 ? `<span class="mini-badge" style="background:rgba(32,119,189,0.10);color:var(--brand-blue)">${mk.charAt(0).toUpperCase() + mk.slice(1)} ${Math.round(mt).toLocaleString('id-ID')} MT</span>` : '';
-        }).join('')}
-      </div>
+      <div class="mini-sub">${periodLabel} · of ${Math.round(totalBudgMT).toLocaleString('id-ID')} MT · <span style="color:${pctColor};font-weight:700">${totalPct.toFixed(1)}%</span></div>
     `;
   }
 
@@ -658,30 +794,21 @@ function buildAnalytics() {
   const totalMarginProd = prodCats.reduce((s,p)=>s+p.margin,0);
   const totalRevenueProd = prodCats.reduce((s,p)=>s+p.revenue,0);
   const totalMTProd = prodCats.reduce((s,p)=>s+p.mt,0);
+  const prodValue = (value, unit) => unit === 'MT'
+    ? `${Math.round(value).toLocaleString('id-ID')} MT`
+    : `${value.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M`;
+  const productMini = (actual, unit, color, subLabel) => `
+    <div class="mini-highlight" style="color:${color}">${prodValue(actual, unit)}</div>
+    <div class="mini-sub">${periodLabel} · ${subLabel}</div>`;
   
   const mpM = document.getElementById('mini-prod-margin');
-  if(mpM) mpM.innerHTML = `
-    <div class="mini-highlight" style="color:var(--brand-green-dark)">${totalMarginProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · ${prodCats.length} produk</div>
-    <div class="mini-badges">
-      ${[...prodCats].sort((a,b)=>b.margin-a.margin).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
-    </div>`;
+  if(mpM) mpM.innerHTML = productMini(totalMarginProd, 'M', 'var(--brand-green-dark)', `${prodCats.length} produk`);
 
   const mpR = document.getElementById('mini-prod-revenue');
-  if(mpR) mpR.innerHTML = `
-    <div class="mini-highlight" style="color:var(--brand-blue)">${totalRevenueProd.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · revenue produk</div>
-    <div class="mini-badges">
-      ${[...prodCats].sort((a,b)=>b.revenue-a.revenue).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${p.revenue.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</span>`).join('')}
-    </div>`;
+  if(mpR) mpR.innerHTML = productMini(totalRevenueProd, 'M', 'var(--brand-blue)', 'revenue produk');
 
   const mpQ = document.getElementById('mini-prod-qty');
-  if(mpQ) mpQ.innerHTML = `
-    <div class="mini-highlight" style="color:var(--brand-dark)">${Math.round(totalMTProd).toLocaleString('id-ID')} MT</div>
-    <div class="mini-sub">${(typeof FILTER_MONTH!=='undefined'&&FILTER_MONTH!==-1&&typeof _MS!=='undefined'?_MS[FILTER_MONTH]:"YTD")} · volume produk</div>
-    <div class="mini-badges">
-      ${[...prodCats].sort((a,b)=>b.mt-a.mt).map(p=>`<span class="mini-badge" style="background:${p.color}1A;color:${p.color}">${p.label}: ${Math.round(p.mt).toLocaleString('id-ID')} MT</span>`).join('')}
-    </div>`;
+  if(mpQ) mpQ.innerHTML = productMini(totalMTProd, 'MT', 'var(--brand-dark)', 'volume produk');
 
   const custMap = getCustomerData();
   const byMargin = Object.entries(custMap).sort((a,b)=>b[1].margin-a[1].margin);
@@ -689,20 +816,14 @@ function buildAnalytics() {
   const mc = document.getElementById('mini-cust-margin');
   if(mc && top1m) mc.innerHTML = `
     <div class="mini-highlight" style="color:var(--brand-green-dark)">${top1m[1].margin.toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2})} M</div>
-    <div class="mini-sub">${top1m[0].replace('PT. ','').replace(' Indonesia','')}</div>
-    <div class="mini-badges">
-      ${byMargin.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:rgba(42,182,117,0.10);color:var(--brand-green-dark)">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
-    </div>`;
+    <div class="mini-sub">${top1m[0].replace('PT. ','').replace(' Indonesia','')}</div>`;
 
   const byQty = Object.entries(custMap).filter(([,v])=>v.kg>0).sort((a,b)=>b[1].kg-a[1].kg);
   const top1q = byQty[0];
   const mq2 = document.getElementById('mini-cust-qty');
   if(mq2 && top1q) mq2.innerHTML = `
     <div class="mini-highlight" style="color:var(--brand-blue)">${Math.round(top1q[1].kg/1000).toLocaleString('id-ID')} MT</div>
-    <div class="mini-sub">${top1q[0].replace('PT. ','').replace(' Indonesia','')}</div>
-    <div class="mini-badges">
-      ${byQty.slice(0,3).map(([n,v],i)=>`<span class="mini-badge" style="background:rgba(32,119,189,0.10);color:var(--brand-blue)">${i+1}. ${n.replace('PT. ','').replace(' Indonesia','').replace(' Intl','')}</span>`).join('')}
-    </div>`;
+    <div class="mini-sub">${top1q[0].replace('PT. ','').replace(' Indonesia','')}</div>`;
 }
 
 let activeQtyMonth='jan';

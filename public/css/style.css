@@ -157,6 +157,38 @@ header {
 .btn-primary:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
 .btn svg { width:14px; height:14px; flex-shrink:0; }
 
+.header-action-menu { position:relative; }
+.header-gear-btn { min-width:76px; justify-content:center; }
+.data-action-dropdown {
+  display:none;
+  position:absolute;
+  top:38px;
+  right:0;
+  z-index:9999;
+  min-width:210px;
+  padding:6px;
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:8px;
+  box-shadow:0 4px 16px rgba(35,31,32,0.12);
+}
+.data-action-dropdown.open { display:block; }
+.data-action-item {
+  width:100%;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  border-radius:6px;
+  padding:8px 10px;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:700;
+  text-align:left;
+  cursor:pointer;
+}
+.data-action-item:hover { background:var(--s3); color:var(--brand-blue); }
+.data-action-sep { height:1px; background:var(--border); margin:5px 0; }
+
 /* Full-width primary action button (modal save / submit) */
 .btn-primary-block {
   width:100%; padding:12px;
@@ -512,12 +544,51 @@ canvas { width:100% !important; }
 .chatbox-send svg { width:16px; height:16px; color:#FFFFFF; }
 
 /* ── Analytics Mini Cards ── */
+.analytics-toolbar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:-2px 0 10px;
+}
+.analytics-toolbar-label {
+  font-size:10px;
+  color:var(--muted);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:700;
+}
+.analytics-toolbar-context {
+  margin-left:8px;
+  font-size:11px;
+  color:var(--text);
+  font-weight:700;
+}
+.analytics-mode-toggle {
+  display:flex;
+  gap:2px;
+  padding:2px;
+  background:var(--s3);
+  border:1px solid var(--border);
+  border-radius:7px;
+}
+.analytics-mode-btn {
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  border-radius:6px;
+  padding:5px 12px;
+  font-family:inherit;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+.analytics-mode-btn.active { background:var(--brand-blue); color:#FFFFFF; }
+.analytics-mode-btn:hover:not(.active) { background:var(--s1); color:var(--text); }
 .analytics-mini { transition:all 0.15s ease; overflow:hidden; }
 .analytics-mini:hover { border-color:var(--border2) !important; box-shadow:0 2px 6px rgba(35,31,32,0.06); }
 .mini-highlight { font-family:inherit; font-size:20px; font-weight:700; line-height:1; margin-bottom:4px; letter-spacing:-0.2px; }
 .mini-sub { font-size:11px; color:var(--muted); margin-top:2px; font-weight:400; }
-.mini-badges { display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
-.mini-badge { font-size:10px; padding:3px 8px; border-radius:6px; font-weight:700; letter-spacing:0; }
 
 /* ── Footer ── */
 footer {

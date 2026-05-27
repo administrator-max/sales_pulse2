@@ -36,6 +36,8 @@ function closeAnalyticsModal() {
 function buildAnalyticsDetail(type) {
   const fmt2 = v => (v||0).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtN = v => Math.round(v||0).toLocaleString('id-ID');
+  const modeLabel = ANALYTICS_PERIOD_MODE.toUpperCase();
+  const periodLabel = getAnalyticsPeriodLabel();
 
   if(type==='qty') {
       const actual = getActualQtyMT();
@@ -47,9 +49,9 @@ function buildAnalyticsDetail(type) {
       
       let h = `<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
-          <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total YTD</div>
+          <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total ${modeLabel}</div>
             <div style="font-family:inherit;font-size:38px;font-weight:700;color:var(--actual);line-height:1">${fmtN(totalMT)} MT</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;">of ${fmtN(totalBudg)} MT full year budget</div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">${periodLabel} · of ${fmtN(totalBudg)} MT budget</div></div>
           <div style="text-align:right"><div style="font-family:inherit;font-size:48px;font-weight:700;line-height:1;color:${pctCol}">${totPct.toFixed(1)}%</div>
             <div style="font-size:11px;color:var(--muted)">achievement</div></div>
         </div>
@@ -101,9 +103,9 @@ function buildAnalyticsDetail(type) {
       let h=`<div style="padding:16px 20px;border-bottom:1px solid var(--border2);">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;">
           <div>
-            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Total YTD</div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Total ${modeLabel}</div>
             <div style="font-family:inherit;font-size:36px;font-weight:700;color:${totalColor};line-height:1">${totalValue}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;">${totalSub}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">${periodLabel} · ${totalSub}</div>
           </div>
         </div></div>`;
       sortedCats.forEach(p=>{
@@ -161,7 +163,7 @@ function buildAnalyticsDetail(type) {
         <div style="display:flex;justify-content:space-between;">
           <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">${type==='cust-margin'?'Ranked by Margin':'Ranked by Qty (MT)'}</div>
             <div style="font-family:inherit;font-size:22px;font-weight:700;color:var(--actual)">${sorted.length} Customers</div></div>
-          <div style="text-align:right"><div style="font-size:10px;color:var(--muted)">Total Margin YTD</div>
+          <div style="text-align:right"><div style="font-size:10px;color:var(--muted)">Total Margin ${modeLabel}</div>
             <div style="font-family:inherit;font-size:18px;font-weight:700;color:var(--ok)">${fmt2(totalMargin)} M</div></div>
         </div></div>`;
       sorted.forEach(([name,data],i)=>{

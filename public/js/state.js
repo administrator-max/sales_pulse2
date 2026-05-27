@@ -31,6 +31,7 @@ let QTY_DATA = {};
 let COMPANY_RANK_EXCLUSIONS = [];
 let selectedMonth = NOW_MONTH <= 11 ? NOW_MONTH : 11;
 let SP_ACTIVE_REV = Array(12).fill(0);
+let ANALYTICS_PERIOD_MODE = 'ytd'; // ytd = Jan..anchor, mtd = anchor month only
 
 // Chart filter: '__all__' (aggregate) atau canonical product name
 let CHART_PRODUCT = '__all__';
@@ -74,6 +75,76 @@ function setFilterMonth(month) {
   if (dd) dd.style.display = 'none';
   _updateFilterBadge();
   refreshAll();
+}
+
+function getReportedMonthIndices() {
+  const seen = new Set();
+
+  ACTUAL.margin.forEach((v, i) => {
+    if (v != null || ACTUAL.revenue[i] != null || ACTUAL.plan[i] != null) seen.add(i);
+  });
+  Object.values(ACTUAL_PRODUCTS || {}).forEach(product => {
+    ['volume', 'revenue', 'margin'].forEach(metric => {
+      (product[metric] || []).forEach((v, i) => { if (toNum(v) !== 0) seen.add(i); });
+    });
+  });
+  MONTH_KEYS.forEach((mk, i) => {
+    if ((PS_CHAINS[mk] || []).length > 0 || (QTY_DATA[mk] || []).length > 0) seen.add(i);
+  });
+
+  return Array.from(seen).sort((a, b) => a - b);
+}
+
+function getAnalyticsAnchorMonthIndex() {
+  const fm = (typeof FILTER_MONTH !== 'undefined') ? FILTER_MONTH : -1;
+  if (fm >= 0 && fm <= 11) return fm;
+  const reported = getReportedMonthIndices();
+  return reported.length ? reported[reported.length - 1] : Math.min(NOW_MONTH, 11);
+}
+
+function getAnalyticsMonthIndices(mode = ANALYTICS_PERIOD_MODE) {
+  const anchor = getAnalyticsAnchorMonthIndex();
+  if (mode === 'mtd') return [anchor];
+  return Array.from({ length: anchor + 1 }, (_, i) => i);
+}
+
+function getAnalyticsPeriodLabel(mode = ANALYTICS_PERIOD_MODE) {
+  const anchor = getAnalyticsAnchorMonthIndex();
+  if (mode === 'mtd') return `${_MS[anchor]} ${FILTER_YEAR}`;
+  return `YTD Jan-${_MS[anchor]} ${FILTER_YEAR}`;
+}
+
+function setAnalyticsPeriodMode(mode) {
+  ANALYTICS_PERIOD_MODE = mode === 'mtd' ? 'mtd' : 'ytd';
+  document.querySelectorAll('.analytics-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === ANALYTICS_PERIOD_MODE);
+  });
+  if (typeof updateKPIs === 'function') updateKPIs();
+  if (typeof buildAnalytics === 'function') buildAnalytics();
+}
+
+function toggleDataMenu(event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById('data-action-dropdown');
+  if (!menu) return;
+  menu.classList.toggle('open');
+
+  if (menu.classList.contains('open')) {
+    setTimeout(() => {
+      const handler = (e) => {
+        if (!menu.contains(e.target) && !e.target.closest('.header-action-menu')) {
+          closeDataMenu();
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  }
+}
+
+function closeDataMenu() {
+  const menu = document.getElementById('data-action-dropdown');
+  if (menu) menu.classList.remove('open');
 }
 
 function toggleMonthDropdown() {
@@ -362,8 +433,7 @@ function getPlanQtyByProduct(){
   return result;
 }
 
-function getBudgetQty() {
-  const indices = getActiveMonthIndices();
+function getBudgetQty(indices = getAnalyticsMonthIndices()) {
   const res = {};
   getCanonicalProductNames().forEach((product, idx) => {
     res[product] = {
@@ -375,8 +445,7 @@ function getBudgetQty() {
   return res;
 }
 
-function getActualQtyMT() {
-  const indices = getActiveMonthIndices();
+function getActualQtyMT(indices = getAnalyticsMonthIndices()) {
   const res = {};
   getCanonicalProductNames().forEach(product => {
     res[product] = indices.reduce((s, i) => s + getActualProductVolume(product, i), 0);

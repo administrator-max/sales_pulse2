@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="/css/style.css?v=20260521-prod-revenue">
+<link rel="stylesheet" href="/css/style.css?v=20260527-mode-export">
 </head>
 <body>
 <div class="page">
@@ -30,14 +30,19 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="4"/><rect x="14" y="14" width="7" height="4"/><rect x="3" y="20" width="18" height="1"/></svg>
       Executive Summary
     </a>
-    <button class="btn btn-ghost" onclick="openBudgetImportModal()" title="Import budget Excel (Volume / Revenue / Margin per produk)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-      Import Budget
-    </button>
-    <button class="btn btn-ghost" onclick="openUploadModal()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      Import Excel
-    </button>
+    <div class="header-action-menu">
+      <button class="btn btn-ghost header-gear-btn" onclick="toggleDataMenu(event)" title="Data tools">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 01-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 01-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.6-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 012.8-2.8l.1.1a1.7 1.7 0 001.9.3h.1a1.7 1.7 0 001-1.6V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.6h.1a1.7 1.7 0 001.9-.3l.1-.1a2 2 0 012.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.6 1h.1a2 2 0 010 4h-.1a1.7 1.7 0 00-1.6 1z"/></svg>
+        Data
+      </button>
+      <div id="data-action-dropdown" class="data-action-dropdown">
+        <button class="data-action-item" onclick="closeDataMenu(); openUploadModal()">Import Project Sheet</button>
+        <button class="data-action-item" onclick="closeDataMenu(); openBudgetImportModal()">Import Budget Excel</button>
+        <div class="data-action-sep"></div>
+        <button class="data-action-item" onclick="closeDataMenu(); exportDashboardExcel('mtd')">Export Excel MTD</button>
+        <button class="data-action-item" onclick="closeDataMenu(); exportDashboardExcel('ytd')">Export Excel YTD</button>
+      </div>
+    </div>
 
     <!-- Filter: Year + Month dropdown -->
     <div class="header-filter-group">
@@ -90,14 +95,25 @@
   <div style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400;">FX · Template Rates Applied</div>
 </div>
 
+<div class="analytics-toolbar">
+  <div>
+    <span class="analytics-toolbar-label">Analytics Mode</span>
+    <span id="analytics-period-context" class="analytics-toolbar-context">YTD</span>
+  </div>
+  <div class="analytics-mode-toggle">
+    <button class="analytics-mode-btn active" data-mode="ytd" onclick="setAnalyticsPeriodMode('ytd')">YTD</button>
+    <button class="analytics-mode-btn" data-mode="mtd" onclick="setAnalyticsPeriodMode('mtd')">MTD</button>
+  </div>
+</div>
+
 <div class="kpi-strip">
   <div class="kpi" style="--kpi-c:var(--budget)">
-    <div class="kpi-l">Full Year Budget</div>
+    <div class="kpi-l">Budget</div>
     <div class="kpi-v" id="kpi-budget">—</div>
     <div class="kpi-s">GP+ATL</div>
   </div>
   <div class="kpi" style="--kpi-c:var(--actual)">
-    <div class="kpi-l">YTD Actual</div>
+    <div class="kpi-l">Actual</div>
     <div class="kpi-v" id="kpi-actual">—</div>
     <div class="kpi-s" id="kpi-actual-sub">No data yet</div>
     <!-- Tooltip wrapper untuk badge achievement % -->
@@ -631,12 +647,12 @@
   </div>
 </div>
 
-<script src="/js/state.js?v=20260521-prod-revenue"></script>
-<script src="/js/ui.js?v=20260521-prod-revenue"></script>
-<script src="/js/modals.js?v=20260521-prod-revenue"></script>
-<script src="/js/budget.js?v=20260521-prod-revenue"></script>
-<script src="/js/chat.js?v=20260521-prod-revenue"></script>
-<script src="/js/app.js?v=20260521-prod-revenue"></script>
+<script src="/js/state.js?v=20260527-mode-export"></script>
+<script src="/js/ui.js?v=20260527-mode-export"></script>
+<script src="/js/modals.js?v=20260527-mode-export"></script>
+<script src="/js/budget.js?v=20260527-mode-export"></script>
+<script src="/js/chat.js?v=20260527-mode-export"></script>
+<script src="/js/app.js?v=20260527-mode-export"></script>
 
 
 <!-- kpi-att floating tooltip — fixed to body so it is never clipped -->

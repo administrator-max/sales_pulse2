@@ -220,22 +220,22 @@ app.get('/api/data', async (req, res) => {
       // Actual margin/revenue per (product, month) dari ps_headers
       pool.query(`
         SELECT dashboard_month_idx AS month_idx,
-               product,
+               COALESCE(NULLIF(product, ''), 'Projects') AS product,
                COALESCE(SUM(margin),0)        AS margin,
                COALESCE(SUM(sales_revenue),0) AS revenue
           FROM ps_headers
-         WHERE dashboard_year = $1 AND product IS NOT NULL
-         GROUP BY dashboard_month_idx, product
+         WHERE dashboard_year = $1
+         GROUP BY dashboard_month_idx, COALESCE(NULLIF(product, ''), 'Projects')
       `, [year]),
       // Actual volume MT per (product, month) dari ps_items JOIN ps_headers
       pool.query(`
         SELECT h.dashboard_month_idx AS month_idx,
-               h.product,
+               COALESCE(NULLIF(h.product, ''), 'Projects') AS product,
                COALESCE(SUM(i.total_weight_kg),0) / 1000.0 AS volume_mt
           FROM ps_headers h
           JOIN ps_items   i ON i.ps_number = h.ps_number
-         WHERE h.dashboard_year = $1 AND h.product IS NOT NULL
-         GROUP BY h.dashboard_month_idx, h.product
+         WHERE h.dashboard_year = $1
+         GROUP BY h.dashboard_month_idx, COALESCE(NULLIF(h.product, ''), 'Projects')
       `, [year]),
       pool.query('SELECT * FROM monthly_actuals WHERE year = $1 ORDER BY month_idx ASC', [year]),
       pool.query('SELECT * FROM plan_revisions  WHERE year = $1 ORDER BY month_idx ASC, id ASC', [year]),
@@ -364,7 +364,7 @@ app.get('/api/data', async (req, res) => {
         if (h.product) productCounts[h.product] = (productCounts[h.product] || 0) + 1;
       });
       const canonicalProduct = Object.entries(productCounts)
-        .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || 'Projects';
       const segmentVal = headers.find(h => h.segment)?.segment || null;
 
       PS_CHAINS[mKey].push({
