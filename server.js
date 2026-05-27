@@ -128,24 +128,6 @@ pool.on('error', (err) => {
 
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const COLORS = ['#f59e0b', '#a78bfa', '#22d3ee', '#4ade80', '#fb923c', '#818cf8', '#38bdf8'];
-const COMPANY_RANK_EXCLUSIONS = loadCompanyRankExclusions();
-
-function loadCompanyRankExclusions() {
-  const filePath = path.join(__dirname, 'config', 'company-rank-exclusions.json');
-  try {
-    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const rows = Array.isArray(raw) ? raw : (raw.companies || []);
-    return rows
-      .map(row => ({
-        companyName: String(row.companyName || row.name || '').trim(),
-        abbreviation: String(row.abbreviation || row.code || '').trim().toUpperCase(),
-      }))
-      .filter(row => row.companyName || row.abbreviation);
-  } catch (err) {
-    console.warn(`[config] company rank exclusions not loaded: ${err.message}`);
-    return [];
-  }
-}
 
 function parseProjectSheetDate(value) {
   if (value == null || value === '') return { date: null, monthIdx: null };
@@ -431,7 +413,6 @@ app.get('/api/data', async (req, res) => {
       PLAN_REVISIONS,
       PS_CHAINS,
       QTY_DATA,
-      COMPANY_RANK_EXCLUSIONS,
     });
   } catch (err) {
     console.error('GET /api/data error:', err);

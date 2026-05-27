@@ -28,7 +28,6 @@ let ACTUAL_PRODUCTS = {};   // canonical_product → { volume:[12], revenue:[12]
 let PLAN_REVISIONS = Array.from({length:12}, ()=>[]);
 let PS_CHAINS = {};
 let QTY_DATA = {};
-let COMPANY_RANK_EXCLUSIONS = [];
 let selectedMonth = NOW_MONTH <= 11 ? NOW_MONTH : 11;
 let SP_ACTIVE_REV = Array(12).fill(0);
 let ANALYTICS_PERIOD_MODE = 'ytd'; // ytd = Jan..anchor, mtd = anchor month only
@@ -207,7 +206,6 @@ async function initApp() {
       PLAN_REVISIONS = data.PLAN_REVISIONS || PLAN_REVISIONS;
       PS_CHAINS = data.PS_CHAINS || {};
       QTY_DATA = data.QTY_DATA || {};
-      COMPANY_RANK_EXCLUSIONS = data.COMPANY_RANK_EXCLUSIONS || [];
 
       // Ensure month keys exist in dynamic dictionaries
       MONTH_KEYS.forEach(m => {
@@ -257,31 +255,6 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#39;'
   }[ch]));
-}
-
-function normalizeCompanyRankName(value) {
-  return String(value || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/&/g, ' AND ')
-    .replace(/\b(PT|CV|TBK|PTE|LTD|INC|CO|INDONESIA|INTL)\b\.?/g, ' ')
-    .replace(/[^A-Z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function isExcludedCompanyRankName(name) {
-  const normalized = normalizeCompanyRankName(name);
-  if (!normalized) return false;
-
-  const tokens = new Set(normalized.split(' '));
-  return (COMPANY_RANK_EXCLUSIONS || []).some(row => {
-    const company = normalizeCompanyRankName(row.companyName || row.name);
-    const abbr = normalizeCompanyRankName(row.abbreviation || row.code);
-    if (abbr && (normalized === abbr || tokens.has(abbr))) return true;
-    return company && (normalized === company || normalized.includes(company));
-  });
 }
 
 function showToast(msg, isErr=false){

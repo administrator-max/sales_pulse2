@@ -626,7 +626,6 @@ function getCustomerData(indices = getAnalyticsMonthIndices()) {
   const custMap = {};
   Object.values(getChainsForMonthIndices(indices)).forEach(chains => {
       chains.forEach(ch => {
-          if (isExcludedCompanyRankName(ch.customer)) return;
           if(!custMap[ch.customer]) custMap[ch.customer]={margin:0,revenue:0,projects:[],kg:0};
           custMap[ch.customer].margin  += ch.margin;
           custMap[ch.customer].revenue += ch.revenue;
