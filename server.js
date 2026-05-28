@@ -153,41 +153,16 @@ function isInternalCompany(name) {
   return !!n && INTERNAL_COMPANIES.some(inm => n === inm || n.includes(inm));
 }
 
-// End-customer dari nama project. Konvensi: "{Project} - Del. {Bulan Tahun} - {Customer}".
-// Dipakai saat semua header leg customer-nya internal (mis. Amber → SPV grup), tapi
-// end-customer asli tertulis di ekor nama project.
-function endCustomerFromName(projectName) {
-  const parts = String(projectName || '').split(' - ');
-  if (parts.length < 2) return '';
-  const tail = parts[parts.length - 1].trim();
-  return /[a-z]/i.test(tail) ? tail : '';   // harus mengandung huruf (bukan token tanggal/angka)
-}
-
-// Base project family: buang " - Del. {bulan} {tahun} - {customer}" → cuma nama proyek inti.
-// Dipakai untuk resolve leg internal ke end-customer kanonik dari PS sibling se-family
-// (mis. "Arsen 57 - … - PTJ" → ambil "PT. Pilar Teknindo Jaya" dari sibling "Arsen 57").
-function projectFamilyKey(projectName) {
-  return String(projectName || '').split(/\s-\s*del\b/i)[0].trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-// Consolidated end-customer untuk satu project group:
-//  1) customer EKSTERNAL paling sering di antara header-nya;
-//  2) semua internal → kalau family-nya punya TEPAT 1 customer eksternal, pakai itu (kanonik);
-//  3) ambigu (mis. "X dan Y") → end-customer verbatim dari ekor nama project;
-//  4) fallback ke header yang paling sering.
-function pickEndCustomer(headers, projectName, familyExternal) {
+// Consolidated end-customer untuk satu project group: customer EKSTERNAL paling
+// sering muncul di antara header-nya; fallback ke yang paling sering kalau semua internal.
+function pickEndCustomer(headers) {
   const tally = (rows) => {
     const m = {};
     rows.forEach(h => { if (h.customer_name) m[h.customer_name] = (m[h.customer_name] || 0) + 1; });
     return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   };
   const external = headers.filter(h => !isInternalCompany(h.customer_name));
-  if (external.length) return tally(external);
-  const fam = familyExternal && familyExternal[projectFamilyKey(projectName)];
-  if (fam && fam.size === 1) return [...fam][0];
-  const fromName = endCustomerFromName(projectName);
-  if (fromName && !isInternalCompany(fromName)) return fromName;
-  return tally(headers) || (headers[0] && headers[0].customer_name) || '';
+  return tally(external.length ? external : headers) || (headers[0] && headers[0].customer_name) || '';
 }
 
 function parseProjectSheetDate(value) {
@@ -391,20 +366,11 @@ app.get('/api/data', async (req, res) => {
       projectGroups[groupKey].headers.push(header);
     });
 
-    // Family → set customer eksternal (lintas bulan/leg) untuk resolve leg internal
-    // ke nama customer kanonik (mis. "KEM"/"PTJ" → nama penuh dari PS sibling).
-    const familyExternal = {};
-    psHeadersRes.rows.forEach(h => {
-      if (isInternalCompany(h.customer_name) || !h.customer_name) return;
-      const k = projectFamilyKey(h.project_name);
-      (familyExternal[k] = familyExternal[k] || new Set()).add(h.customer_name);
-    });
-
     let colorIdx = 0;
     Object.values(projectGroups).forEach(group => {
       const { mKey, projectName, headers } = group;
       // Customer = end-customer eksternal (roll-up intercompany), bukan leg internal.
-      const customer = pickEndCustomer(headers, projectName, familyExternal);
+      const customer = pickEndCustomer(headers);
 
       const totalMarginIDR  = headers.reduce((s, h) => s + parseFloat(h.margin || 0), 0);
       const totalRevenueIDR = headers.reduce((s, h) => s + parseFloat(h.sales_revenue || 0), 0);
