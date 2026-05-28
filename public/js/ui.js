@@ -624,13 +624,21 @@ function getProdCategoryData(indices = getAnalyticsMonthIndices()) {
 
 function getCustomerData(indices = getAnalyticsMonthIndices()) {
   const custMap = {};
+  const addCust = (name, margin, revenue, projName) => {
+      if(!custMap[name]) custMap[name]={margin:0,revenue:0,projects:[],kg:0};
+      custMap[name].margin  += margin;
+      custMap[name].revenue += revenue;
+      if (projName && !custMap[name].projects.includes(projName)) custMap[name].projects.push(projName);
+  };
   Object.values(getChainsForMonthIndices(indices)).forEach(chains => {
       chains.forEach(ch => {
+          // Parallel-parent: bagi margin/revenue ke beberapa end-customer (proporsional volume)
+          if (Array.isArray(ch.customerSplit) && ch.customerSplit.length) {
+              ch.customerSplit.forEach(sp => addCust(sp.customer, ch.margin*sp.weight, ch.revenue*sp.weight, ch.name));
+              return;
+          }
           if (ch.customerInternal) return; // skip leg intercompany — customer-nya entitas grup, bukan end-customer
-          if(!custMap[ch.customer]) custMap[ch.customer]={margin:0,revenue:0,projects:[],kg:0};
-          custMap[ch.customer].margin  += ch.margin;
-          custMap[ch.customer].revenue += ch.revenue;
-          if (!custMap[ch.customer].projects.includes(ch.name)) custMap[ch.customer].projects.push(ch.name);
+          addCust(ch.customer, ch.margin, ch.revenue, ch.name);
       });
   });
   Object.values(getQtyDataForMonthIndices(indices)).forEach(projs => {

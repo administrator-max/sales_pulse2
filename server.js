@@ -165,6 +165,23 @@ function pickEndCustomer(headers) {
   return tally(external.length ? external : headers) || (headers[0] && headers[0].customer_name) || '';
 }
 
+// Normalisasi nama company tanpa spasi (untuk matching "Eka Mulia" ≈ "Ekamulia").
+const normNoSpace = (s) => normCompany(s).replace(/\s+/g, '');
+
+// End-customer dari ekor nama project: "{Project} - Del. {Bulan Tahun} - {Customer(s)}".
+function endCustomerFromName(projectName) {
+  const parts = String(projectName || '').split(' - ');
+  if (parts.length < 2) return '';
+  const tail = parts[parts.length - 1].trim();
+  return /[a-z]/i.test(tail) ? tail : '';
+}
+
+// Base project family: buang " - Del. {bulan} {tahun} - {customer}" → nama proyek inti.
+// Dipakai untuk menemukan leg "anak" (parallel) dari satu parent yang melayani >1 customer.
+function projectFamilyKey(projectName) {
+  return String(projectName || '').split(/\s-\s*del\b/i)[0].trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function parseProjectSheetDate(value) {
   if (value == null || value === '') return { date: null, monthIdx: null };
 
@@ -366,11 +383,47 @@ app.get('/api/data', async (req, res) => {
       projectGroups[groupKey].headers.push(header);
     });
 
+    // Family → { customerNoSpace: { name, volumeMT } } untuk leg "anak" eksternal.
+    // Dipakai membagi margin parallel-parent (mis. Youfa 10 → Sapta + Karyawaja)
+    // proporsional ke volume tiap anak.
+    const familyChildren = {};
+    psHeadersRes.rows.forEach(h => {
+      if (isInternalCompany(h.customer_name) || !h.customer_name) return;
+      const fk  = projectFamilyKey(h.project_name);
+      const key = normNoSpace(h.customer_name);
+      const vol = (itemsByPs[h.ps_number] || []).reduce((s, it) => s + parseFloat(it.total_weight_kg || 0), 0) / 1000;
+      if (!familyChildren[fk]) familyChildren[fk] = {};
+      if (!familyChildren[fk][key]) familyChildren[fk][key] = { name: h.customer_name, volumeMT: 0 };
+      familyChildren[fk][key].volumeMT += vol;
+    });
+
     let colorIdx = 0;
     Object.values(projectGroups).forEach(group => {
       const { mKey, projectName, headers } = group;
       // Customer = end-customer eksternal (roll-up intercompany), bukan leg internal.
-      const customer = pickEndCustomer(headers);
+      let customer = pickEndCustomer(headers);
+      let customerInternal = isInternalCompany(customer);
+
+      // Parallel-parent: leg internal yang namanya menyebut >1 end-customer ("A dan B").
+      // Bagi margin/revenue ke tiap customer proporsional ke volume leg anaknya se-family.
+      let customerSplit = null;
+      if (customerInternal) {
+        const names = endCustomerFromName(projectName).split(/\s+dan\s+/i).map(s => s.trim()).filter(Boolean);
+        if (names.length >= 2) {
+          const children = familyChildren[projectFamilyKey(projectName)] || {};
+          const parts = names.map(nm => {
+            const child = children[normNoSpace(nm)];
+            return { customer: child ? child.name : nm, volumeMT: child ? child.volumeMT : 0 };
+          });
+          const totalVol = parts.reduce((s, p) => s + p.volumeMT, 0);
+          customerSplit = parts.map(p => ({
+            customer: p.customer,
+            weight: totalVol > 0 ? p.volumeMT / totalVol : 1 / parts.length,
+          }));
+          customer = endCustomerFromName(projectName);  // tampilkan nama gabungan di modal
+          customerInternal = false;                      // sudah ditangani via split
+        }
+      }
 
       const totalMarginIDR  = headers.reduce((s, h) => s + parseFloat(h.margin || 0), 0);
       const totalRevenueIDR = headers.reduce((s, h) => s + parseFloat(h.sales_revenue || 0), 0);
@@ -390,7 +443,8 @@ app.get('/api/data', async (req, res) => {
         name:     projectName,
         ps:       headers.map(h => h.ps_number).join(' · '),
         customer,
-        customerInternal: isInternalCompany(customer),
+        customerInternal,
+        customerSplit,
         product:  canonicalProduct,
         segment:  segmentVal,
         revenue:  parseFloat((totalRevenueIDR / 1e6).toFixed(3)),
