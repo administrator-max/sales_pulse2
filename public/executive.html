@@ -884,14 +884,23 @@ function getProdRanking(indices, data) {
 function getCustRanking(indices, data) {
   const { PS_CHAINS } = data;
   const custs = {};
+  const add = (rawName, margin, revenue) => {
+    const name = (rawName || 'Unknown')
+      .replace('PT. ','').replace(' Indonesia','').replace(' Intl','');
+    if (!custs[name]) custs[name] = { name, margin:0, revenue:0 };
+    custs[name].margin  += margin;
+    custs[name].revenue += revenue;
+  };
   indices.forEach(i => {
     const mk = MONTH_KEYS[i];
     (PS_CHAINS[mk] || []).forEach(ch => {
-      const name = (ch.customer || 'Unknown')
-        .replace('PT. ','').replace(' Indonesia','').replace(' Intl','');
-      if (!custs[name]) custs[name] = { name, margin:0, revenue:0 };
-      custs[name].margin  += (ch.margin  || 0);
-      custs[name].revenue += (ch.revenue || 0);
+      // Parallel-parent: bagi margin/revenue ke beberapa end-customer (proporsional volume)
+      if (Array.isArray(ch.customerSplit) && ch.customerSplit.length) {
+        ch.customerSplit.forEach(sp => add(sp.customer, (ch.margin||0)*sp.weight, (ch.revenue||0)*sp.weight));
+        return;
+      }
+      if (ch.customerInternal) return; // skip leg intercompany — customer-nya entitas grup
+      add(ch.customer, ch.margin || 0, ch.revenue || 0);
     });
   });
   return Object.values(custs)
