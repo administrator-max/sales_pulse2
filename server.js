@@ -129,6 +129,42 @@ pool.on('error', (err) => {
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const COLORS = ['#f59e0b', '#a78bfa', '#22d3ee', '#4ade80', '#fb923c', '#818cf8', '#38bdf8'];
 
+// ── Internal group companies (PS-issuing SPVs) ────────────────────────────────
+// Sumber: config/company-rank-exclusions.json. Saat salah satu entitas ini muncul
+// sebagai "customer", itu leg intercompany (bukan end-customer asli), jadi tidak
+// dihitung di ranking customer — project di-roll-up ke customer eksternal (konsolidasi).
+const normCompany = (s) =>
+  String(s || '').toLowerCase().replace(/\bpt\.?\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+const INTERNAL_COMPANIES = (() => {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config', 'company-rank-exclusions.json'), 'utf8'));
+    const names = (cfg.companies || []).map(c => normCompany(c.companyName)).filter(Boolean);
+    console.log(`[config] loaded ${names.length} internal companies for customer roll-up`);
+    return names;
+  } catch (e) {
+    console.warn('[config] company-rank-exclusions.json not loaded:', e.message);
+    return [];
+  }
+})();
+
+function isInternalCompany(name) {
+  const n = normCompany(name);
+  return !!n && INTERNAL_COMPANIES.some(inm => n === inm || n.includes(inm));
+}
+
+// Consolidated end-customer untuk satu project group: customer EKSTERNAL paling
+// sering muncul di antara header-nya; fallback ke yang paling sering kalau semua internal.
+function pickEndCustomer(headers) {
+  const tally = (rows) => {
+    const m = {};
+    rows.forEach(h => { if (h.customer_name) m[h.customer_name] = (m[h.customer_name] || 0) + 1; });
+    return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  };
+  const external = headers.filter(h => !isInternalCompany(h.customer_name));
+  return tally(external.length ? external : headers) || (headers[0] && headers[0].customer_name) || '';
+}
+
 function parseProjectSheetDate(value) {
   if (value == null || value === '') return { date: null, monthIdx: null };
 
@@ -324,7 +360,6 @@ app.get('/api/data', async (req, res) => {
         projectGroups[groupKey] = {
           mIdx, mKey: MONTH_KEYS[mIdx],
           projectName: header.project_name || header.ps_number,
-          customer: header.customer_name,
           headers: []
         };
       }
@@ -333,7 +368,9 @@ app.get('/api/data', async (req, res) => {
 
     let colorIdx = 0;
     Object.values(projectGroups).forEach(group => {
-      const { mKey, projectName, customer, headers } = group;
+      const { mKey, projectName, headers } = group;
+      // Customer = end-customer eksternal (roll-up intercompany), bukan leg internal.
+      const customer = pickEndCustomer(headers);
 
       const totalMarginIDR  = headers.reduce((s, h) => s + parseFloat(h.margin || 0), 0);
       const totalRevenueIDR = headers.reduce((s, h) => s + parseFloat(h.sales_revenue || 0), 0);
@@ -353,6 +390,7 @@ app.get('/api/data', async (req, res) => {
         name:     projectName,
         ps:       headers.map(h => h.ps_number).join(' · '),
         customer,
+        customerInternal: isInternalCompany(customer),
         product:  canonicalProduct,
         segment:  segmentVal,
         revenue:  parseFloat((totalRevenueIDR / 1e6).toFixed(3)),
@@ -394,6 +432,7 @@ app.get('/api/data', async (req, res) => {
           name:        projectName,
           color:       COLORS[colorIdx++ % COLORS.length],
           customer,
+          customerInternal: isInternalCompany(customer),
           totalQty:    totalQty.toLocaleString('id-ID') + ' ' + unit,
           totalWeight: totalKg.toLocaleString('id-ID') + ' KG (' + Math.round(totalKg/1000).toLocaleString('id-ID') + ' MT)',
           product:     canonicalProduct,                  // new canonical product
