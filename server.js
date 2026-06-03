@@ -21,7 +21,7 @@ const fs   = require('fs');
 
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+const repo = require('./sheetsRepo');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -103,31 +103,18 @@ app.use(express.static(path.join(__dirname, 'public'), {
   },
 }));
 
-// ── Postgres pool ────────────────────────────────────────────────────────────
-// pg library auto-pickup: PGHOST, PGDATABASE, PGUSER, PGPASSWORD, PGPORT
-// SSL: PGSSL=require → on (Neon), PGSSL=disable → off (localhost)
-const sslMode = (process.env.PGSSL || 'require').toLowerCase();
-
-const pool = new Pool({
-  // Pakai DATABASE_URL kalau ada; kalau tidak, jatuh ke PGHOST/PGUSER/dst
-  connectionString: process.env.DATABASE_URL || undefined,
-  ssl: sslMode === 'disable' ? false : { rejectUnauthorized: false },
-  max: parseInt(process.env.PG_POOL_MAX) || 10,
-  idleTimeoutMillis: 30_000,
-  // Neon serverless suspend setelah ~5 min idle, wake-up bisa makan ~5-10s
-  connectionTimeoutMillis: 30_000,
-  // TCP keepalive supaya pooler tidak drop koneksi long-lived
-  keepAlive: true,
-});
-
-console.log(`[pg] host=${process.env.PGHOST || '(from DATABASE_URL)'}  db=${process.env.PGDATABASE || '?'}  ssl=${sslMode}`);
-
-pool.on('error', (err) => {
-  console.error('Unexpected Postgres pool error:', err);
-});
+// ── Data store: Google Sheets ─────────────────────────────────────────────────
+// Ganti Neon Postgres. Semua "tabel" = tab di spreadsheet (lihat sheetsRepo.js).
+// Pola: baca seluruh tab → olah/agregasi di JS → tulis balik seluruh tab (writes
+// diserialisasi lewat repo.withWriteLock untuk ganti transaksi).
+console.log(`[sheets] spreadsheet=${repo.SPREADSHEET_ID || '(SPREADSHEET_ID belum di-set)'}`);
 
 const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const COLORS = ['#f59e0b', '#a78bfa', '#22d3ee', '#4ade80', '#fb923c', '#818cf8', '#38bdf8'];
+
+const num = (v) => { const n = parseFloat(v); return Number.isNaN(n) ? 0 : n; };
+// Canonical product dengan fallback 'Projects' (ganti COALESCE(NULLIF(product,''),'Projects'))
+const prodKey = (p) => { const s = (p == null ? '' : String(p)).trim(); return s === '' ? 'Projects' : s; };
 
 // ── Internal group companies (PS-issuing SPVs) ────────────────────────────────
 // Sumber: config/company-rank-exclusions.json. Saat salah satu entitas ini muncul
@@ -218,71 +205,47 @@ function parseProjectSheetDate(value) {
   return { date: null, monthIdx: null };
 }
 
+// ── Helper agregasi (ganti GROUP BY SQL → JS) ─────────────────────────────────
+// Group array by key fn, jalankan reducer untuk tiap grup.
+function groupReduce(rows, keyFn, seed, reducer) {
+  const map = new Map();
+  for (const r of rows) {
+    const k = keyFn(r);
+    if (!map.has(k)) map.set(k, { key: k, acc: typeof seed === 'function' ? seed() : { ...seed } });
+    reducer(map.get(k).acc, r);
+  }
+  return [...map.values()];
+}
+
 // ============================================================================
-// 1. GET DATA — fetch all dashboard data in PARALLEL
+// 1. GET DATA — fetch all dashboard data
 // ============================================================================
 app.get('/api/data', async (req, res) => {
   try {
     const year = parseInt(req.query.year) || 2026;
 
-    // Aggregate budget dari `budget_lines` (granular per produk):
-    //  - Total margin/revenue per bulan (untuk KPI strip + chart utama)
-    //  - Volume/revenue/margin per canonical product (ranking, chart, dropdown)
-    // Plus aktualnya per canonical product (untuk achievement % per produk).
-    const [budgetMonthlyRes, budgetByProductRes,
-           actualByProductRes, actualVolumeByProductRes,
-           actualsRes, plansRes, psHeadersRes, psItemsRes] = await Promise.all([
-      pool.query(`
-        SELECT month_idx,
-               COALESCE(SUM(margin_idr),0)  AS margin_raw,
-               COALESCE(SUM(revenue_idr),0) AS revenue_raw,
-               COALESCE(SUM(volume_mt),0)   AS volume_mt
-          FROM budget_lines
-         WHERE year = $1
-         GROUP BY month_idx
-         ORDER BY month_idx ASC
-      `, [year]),
-      pool.query(`
-        SELECT month_idx, product,
-               COALESCE(SUM(volume_mt),0)   AS volume_mt,
-               COALESCE(SUM(revenue_idr),0) AS revenue_idr,
-               COALESCE(SUM(margin_idr),0)  AS margin_idr
-          FROM budget_lines
-         WHERE year = $1
-         GROUP BY month_idx, product
-         ORDER BY month_idx, product
-      `, [year]),
-      // Actual margin/revenue per (product, month) dari ps_headers
-      pool.query(`
-        SELECT dashboard_month_idx AS month_idx,
-               COALESCE(NULLIF(product, ''), 'Projects') AS product,
-               COALESCE(SUM(margin),0)        AS margin,
-               COALESCE(SUM(sales_revenue),0) AS revenue
-          FROM ps_headers
-         WHERE dashboard_year = $1
-         GROUP BY dashboard_month_idx, COALESCE(NULLIF(product, ''), 'Projects')
-      `, [year]),
-      // Actual volume MT per (product, month) dari ps_items JOIN ps_headers
-      pool.query(`
-        SELECT h.dashboard_month_idx AS month_idx,
-               COALESCE(NULLIF(h.product, ''), 'Projects') AS product,
-               COALESCE(SUM(i.total_weight_kg),0) / 1000.0 AS volume_mt
-          FROM ps_headers h
-          JOIN ps_items   i ON i.ps_number = h.ps_number
-         WHERE h.dashboard_year = $1
-         GROUP BY h.dashboard_month_idx, COALESCE(NULLIF(h.product, ''), 'Projects')
-      `, [year]),
-      pool.query('SELECT * FROM monthly_actuals WHERE year = $1 ORDER BY month_idx ASC', [year]),
-      pool.query('SELECT * FROM plan_revisions  WHERE year = $1 ORDER BY month_idx ASC, id ASC', [year]),
-      pool.query('SELECT * FROM ps_headers      WHERE dashboard_year = $1 ORDER BY po_date ASC NULLS LAST, ps_number ASC', [year]),
-      pool.query(`
-        SELECT i.*
-          FROM ps_items i
-          JOIN ps_headers h ON h.ps_number = i.ps_number
-         WHERE h.dashboard_year = $1
-         ORDER BY i.id ASC
-      `, [year]),
+    // Ambil tab mentah secara paralel, lalu filter + agregasi di JS.
+    const [actualsAll, plansAll, budgetAll, headersAll, itemsAll] = await Promise.all([
+      repo.getTable('monthly_actuals'),
+      repo.getTable('plan_revisions'),
+      repo.getTable('budget_lines'),
+      repo.getTable('ps_headers'),
+      repo.getTable('ps_items'),
     ]);
+
+    const budgetRows  = budgetAll.filter(r => r.year === year);
+    const headerRows  = headersAll.filter(h => h.dashboard_year === year);
+    const psNumbersInYear = new Set(headerRows.map(h => h.ps_number));
+    const itemRows    = itemsAll.filter(i => psNumbersInYear.has(i.ps_number));
+    const actualRows  = actualsAll.filter(r => r.year === year).sort((a, b) => a.month_idx - b.month_idx);
+    const planRows    = plansAll.filter(r => r.year === year)
+                                .sort((a, b) => (a.month_idx - b.month_idx) || ((a.id || 0) - (b.id || 0)));
+
+    // Map item → header (untuk JOIN volume) & by ps_number
+    const headerByPs = {};
+    headerRows.forEach(h => { headerByPs[h.ps_number] = h; });
+    const itemsByPs = {};
+    itemRows.forEach(it => { (itemsByPs[it.ps_number] = itemsByPs[it.ps_number] || []).push(it); });
 
     // 1. BUDGET — total margin/revenue dalam MIDR (juta), detail per canonical product
     const BUDGET = {
@@ -291,65 +254,80 @@ app.get('/api/data', async (req, res) => {
       products: {},   // { 'Sheet Pile': { volume:[12], revenue:[12], margin:[12] }, ... }
     };
 
-    // Konversi raw IDR → MIDR (juta IDR) untuk konsisten dengan dashboard lama
-    budgetMonthlyRes.rows.forEach(r => {
-      BUDGET.margin[r.month_idx]  = parseFloat(r.margin_raw)  / 1e6;
-      BUDGET.revenue[r.month_idx] = parseFloat(r.revenue_raw) / 1e6;
+    // budgetMonthly: GROUP BY month_idx
+    groupReduce(budgetRows, r => r.month_idx,
+      () => ({ margin: 0, revenue: 0, volume: 0 }),
+      (a, r) => { a.margin += num(r.margin_idr); a.revenue += num(r.revenue_idr); a.volume += num(r.volume_mt); }
+    ).forEach(g => {
+      BUDGET.margin[g.key]  = g.acc.margin  / 1e6;
+      BUDGET.revenue[g.key] = g.acc.revenue / 1e6;
     });
 
-    budgetByProductRes.rows.forEach(r => {
-      if (!BUDGET.products[r.product]) {
-        BUDGET.products[r.product] = {
-          volume:  Array(12).fill(0),
-          revenue: Array(12).fill(0),  // MIDR
-          margin:  Array(12).fill(0),  // MIDR
-        };
+    // budgetByProduct: GROUP BY (month_idx, product)
+    groupReduce(budgetRows, r => `${r.month_idx}__${r.product}`,
+      () => ({ month_idx: null, product: null, volume: 0, revenue: 0, margin: 0 }),
+      (a, r) => { a.month_idx = r.month_idx; a.product = r.product; a.volume += num(r.volume_mt); a.revenue += num(r.revenue_idr); a.margin += num(r.margin_idr); }
+    ).forEach(g => {
+      const p = g.acc.product;
+      if (!BUDGET.products[p]) {
+        BUDGET.products[p] = { volume: Array(12).fill(0), revenue: Array(12).fill(0), margin: Array(12).fill(0) };
       }
-      BUDGET.products[r.product].volume[r.month_idx]  = parseFloat(r.volume_mt);
-      BUDGET.products[r.product].revenue[r.month_idx] = parseFloat(r.revenue_idr) / 1e6;
-      BUDGET.products[r.product].margin[r.month_idx]  = parseFloat(r.margin_idr)  / 1e6;
+      BUDGET.products[p].volume[g.acc.month_idx]  = g.acc.volume;
+      BUDGET.products[p].revenue[g.acc.month_idx] = g.acc.revenue / 1e6;
+      BUDGET.products[p].margin[g.acc.month_idx]  = g.acc.margin  / 1e6;
     });
 
     // 2. ACTUAL
     const ACTUAL = { margin: Array(12).fill(null), plan: Array(12).fill(null), revenue: Array(12).fill(null), notes: Array(12).fill('') };
-    actualsRes.rows.forEach(r => {
-      ACTUAL.margin[r.month_idx]  = r.actual_margin != null ? parseFloat(r.actual_margin) : null;
-      ACTUAL.plan[r.month_idx]    = r.plan_margin   != null ? parseFloat(r.plan_margin)   : null;
-      ACTUAL.revenue[r.month_idx] = r.revenue       != null ? parseFloat(r.revenue)       : null;
+    actualRows.forEach(r => {
+      ACTUAL.margin[r.month_idx]  = r.actual_margin != null ? num(r.actual_margin) : null;
+      ACTUAL.plan[r.month_idx]    = r.plan_margin   != null ? num(r.plan_margin)   : null;
+      ACTUAL.revenue[r.month_idx] = r.revenue       != null ? num(r.revenue)       : null;
       ACTUAL.notes[r.month_idx]   = r.notes || '';
     });
 
     // 2b. ACTUAL_PRODUCTS — actual margin/revenue/volume per canonical product per bulan
-    // Dipakai frontend untuk: chart filter dropdown + ranking achievement % real
     const ACTUAL_PRODUCTS = {};
     const ensureProd = (p) => {
       if (!ACTUAL_PRODUCTS[p]) {
-        ACTUAL_PRODUCTS[p] = {
-          volume:  Array(12).fill(0),
-          revenue: Array(12).fill(0), // MIDR
-          margin:  Array(12).fill(0), // MIDR
-        };
+        ACTUAL_PRODUCTS[p] = { volume: Array(12).fill(0), revenue: Array(12).fill(0), margin: Array(12).fill(0) };
       }
       return ACTUAL_PRODUCTS[p];
     };
-    actualByProductRes.rows.forEach(r => {
-      const p = ensureProd(r.product);
-      p.margin[r.month_idx]  = parseFloat(r.margin)  / 1e6;
-      p.revenue[r.month_idx] = parseFloat(r.revenue) / 1e6;
+    // actualByProduct: dari ps_headers GROUP BY (month_idx, product) SUM(margin), SUM(sales_revenue)
+    groupReduce(headerRows.filter(h => h.dashboard_month_idx != null && h.dashboard_month_idx >= 0 && h.dashboard_month_idx <= 11),
+      h => `${h.dashboard_month_idx}__${prodKey(h.product)}`,
+      () => ({ month_idx: null, product: null, margin: 0, revenue: 0 }),
+      (a, h) => { a.month_idx = h.dashboard_month_idx; a.product = prodKey(h.product); a.margin += num(h.margin); a.revenue += num(h.sales_revenue); }
+    ).forEach(g => {
+      const p = ensureProd(g.acc.product);
+      p.margin[g.acc.month_idx]  = g.acc.margin  / 1e6;
+      p.revenue[g.acc.month_idx] = g.acc.revenue / 1e6;
     });
-    actualVolumeByProductRes.rows.forEach(r => {
-      const p = ensureProd(r.product);
-      p.volume[r.month_idx] = parseFloat(r.volume_mt);
+    // actualVolumeByProduct: ps_items JOIN ps_headers GROUP BY (month_idx, product) SUM(weight)/1000
+    const volRows = itemRows.map(it => {
+      const h = headerByPs[it.ps_number];
+      return h && h.dashboard_month_idx != null && h.dashboard_month_idx >= 0 && h.dashboard_month_idx <= 11
+        ? { month_idx: h.dashboard_month_idx, product: prodKey(h.product), kg: num(it.total_weight_kg) }
+        : null;
+    }).filter(Boolean);
+    groupReduce(volRows, r => `${r.month_idx}__${r.product}`,
+      () => ({ month_idx: null, product: null, kg: 0 }),
+      (a, r) => { a.month_idx = r.month_idx; a.product = r.product; a.kg += r.kg; }
+    ).forEach(g => {
+      const p = ensureProd(g.acc.product);
+      p.volume[g.acc.month_idx] = g.acc.kg / 1000.0;
     });
 
     // 3. PLAN_REVISIONS
     const PLAN_REVISIONS = Array.from({length: 12}, () => []);
-    plansRes.rows.forEach(r => {
+    planRows.forEach(r => {
+      if (r.month_idx == null || r.month_idx < 0 || r.month_idx > 11) return;
       PLAN_REVISIONS[r.month_idx].push({
         id: r.id,
         name: r.name,
-        margin:  r.margin  != null ? parseFloat(r.margin)  : '',
-        revenue: r.revenue != null ? parseFloat(r.revenue) : '',
+        margin:  r.margin  != null ? num(r.margin)  : '',
+        revenue: r.revenue != null ? num(r.revenue) : '',
         notes: r.notes,
         qty: r.qty || {},
         ts: r.ts
@@ -357,19 +335,21 @@ app.get('/api/data', async (req, res) => {
     });
 
     // 4. PS_CHAINS + QTY_DATA
-    // Build O(1) lookup ps_number → items[] (sebelumnya O(N²) filter dalam loop).
-    const itemsByPs = {};
-    psItemsRes.rows.forEach(it => {
-      (itemsByPs[it.ps_number] = itemsByPs[it.ps_number] || []).push(it);
-    });
-
     const PS_CHAINS = {};
     const QTY_DATA  = {};
     MONTH_KEYS.forEach(m => { PS_CHAINS[m] = []; QTY_DATA[m] = []; });
 
+    // ps_headers ordered by po_date asc nulls last, ps_number asc
+    const orderedHeaders = [...headerRows].sort((a, b) => {
+      const da = a.po_date || '￿';
+      const db = b.po_date || '￿';
+      if (da !== db) return da < db ? -1 : 1;
+      return String(a.ps_number).localeCompare(String(b.ps_number));
+    });
+
     // Group ps_headers by (project_name, dashboard_month_idx) → consolidate
     const projectGroups = {};
-    psHeadersRes.rows.forEach(header => {
+    orderedHeaders.forEach(header => {
       const mIdx = header.dashboard_month_idx;
       if (mIdx == null || mIdx < 0 || mIdx > 11) return;
       const groupKey = (header.project_name || header.ps_number) + '__' + mIdx;
@@ -384,14 +364,12 @@ app.get('/api/data', async (req, res) => {
     });
 
     // Family → { customerNoSpace: { name, volumeMT } } untuk leg "anak" eksternal.
-    // Dipakai membagi margin parallel-parent (mis. Youfa 10 → Sapta + Karyawaja)
-    // proporsional ke volume tiap anak.
     const familyChildren = {};
-    psHeadersRes.rows.forEach(h => {
+    headerRows.forEach(h => {
       if (isInternalCompany(h.customer_name) || !h.customer_name) return;
       const fk  = projectFamilyKey(h.project_name);
       const key = normNoSpace(h.customer_name);
-      const vol = (itemsByPs[h.ps_number] || []).reduce((s, it) => s + parseFloat(it.total_weight_kg || 0), 0) / 1000;
+      const vol = (itemsByPs[h.ps_number] || []).reduce((s, it) => s + num(it.total_weight_kg), 0) / 1000;
       if (!familyChildren[fk]) familyChildren[fk] = {};
       if (!familyChildren[fk][key]) familyChildren[fk][key] = { name: h.customer_name, volumeMT: 0 };
       familyChildren[fk][key].volumeMT += vol;
@@ -405,7 +383,6 @@ app.get('/api/data', async (req, res) => {
       let customerInternal = isInternalCompany(customer);
 
       // Parallel-parent: leg internal yang namanya menyebut >1 end-customer ("A dan B").
-      // Bagi margin/revenue ke tiap customer proporsional ke volume leg anaknya se-family.
       let customerSplit = null;
       if (customerInternal) {
         const names = endCustomerFromName(projectName).split(/\s+dan\s+/i).map(s => s.trim()).filter(Boolean);
@@ -425,8 +402,8 @@ app.get('/api/data', async (req, res) => {
         }
       }
 
-      const totalMarginIDR  = headers.reduce((s, h) => s + parseFloat(h.margin || 0), 0);
-      const totalRevenueIDR = headers.reduce((s, h) => s + parseFloat(h.sales_revenue || 0), 0);
+      const totalMarginIDR  = headers.reduce((s, h) => s + num(h.margin), 0);
+      const totalRevenueIDR = headers.reduce((s, h) => s + num(h.sales_revenue), 0);
       const totalPct = totalRevenueIDR > 0
         ? parseFloat((totalMarginIDR / totalRevenueIDR * 100).toFixed(4)) : 0;
 
@@ -455,11 +432,11 @@ app.get('/api/data', async (req, res) => {
           ps:           h.ps_number,
           sub:          h.subsidiary || '',
           currency:     h.currency   || 'IDR',
-          fxRate:       parseFloat(h.fx_rate || 1),
-          marginNative: parseFloat(h.net_margin_native != null ? h.net_margin_native : (h.margin || 0)),
-          marginIDR:    parseFloat(h.margin || 0),
-          marginMIDR:   parseFloat(((h.margin || 0) / 1e6).toFixed(3)),
-          pct:          parseFloat(h.margin_percentage || 0),
+          fxRate:       num(h.fx_rate || 1),
+          marginNative: num(h.net_margin_native != null ? h.net_margin_native : (h.margin || 0)),
+          marginIDR:    num(h.margin || 0),
+          marginMIDR:   parseFloat((num(h.margin || 0) / 1e6).toFixed(3)),
+          pct:          num(h.margin_percentage || 0),
         })),
       });
 
@@ -470,13 +447,13 @@ app.get('/api/data', async (req, res) => {
       headers.forEach(header => {
         const items = itemsByPs[header.ps_number] || [];
         items.forEach(item => {
-          totalKg  += parseFloat(item.total_weight_kg || 0);
-          totalQty += parseFloat(item.qty_val || 0);
-          if (item.qty_unit) unit = item.qty_unit.trim();
+          totalKg  += num(item.total_weight_kg);
+          totalQty += num(item.qty_val);
+          if (item.qty_unit) unit = String(item.qty_unit).trim();
           allProducts.push({
             name:   (item.material + (item.size ? ' (' + item.size + ')' : '')).trim(),
-            qty:    parseFloat(item.qty_val).toLocaleString('id-ID') + ' ' + (item.qty_unit || ''),
-            weight: parseFloat(item.total_weight_kg).toLocaleString('id-ID') + ' KG'
+            qty:    num(item.qty_val).toLocaleString('id-ID') + ' ' + (item.qty_unit || ''),
+            weight: num(item.total_weight_kg).toLocaleString('id-ID') + ' KG'
           });
         });
       });
@@ -496,8 +473,7 @@ app.get('/api/data', async (req, res) => {
       }
     });
 
-    // Browser cache pendek + revalidate. /api/data dipanggil tiap ganti tahun/bulan,
-    // ini bantu kalau user bolak-balik filter yang sama.
+    // Browser cache pendek + revalidate. /api/data dipanggil tiap ganti tahun/bulan.
     res.setHeader('Cache-Control', 'private, max-age=5, must-revalidate');
     res.json({
       BUDGET,
@@ -509,24 +485,27 @@ app.get('/api/data', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /api/data error:', err);
-    res.status(500).json({ error: 'Database read failed: ' + err.message });
+    res.status(500).json({ error: 'Sheets read failed: ' + err.message });
   }
 });
 
 // ============================================================================
 // 2. PRODUCT MASTER — list canonical products + alias map
-// Dipakai frontend untuk dropdown filter & saat parse Budget Excel
 // ============================================================================
 app.get('/api/products', async (req, res) => {
   try {
-    const [prodRes, aliasRes] = await Promise.all([
-      pool.query('SELECT canonical_name, macro_category, display_order FROM products ORDER BY display_order ASC, canonical_name ASC'),
-      pool.query('SELECT alias, canonical_name FROM product_aliases ORDER BY alias ASC'),
+    const [prodRows, aliasRows] = await Promise.all([
+      repo.getTable('products'),
+      repo.getTable('product_aliases'),
     ]);
+    const products = prodRows
+      .filter(r => r.canonical_name)
+      .map(r => ({ canonical_name: r.canonical_name, macro_category: r.macro_category, display_order: r.display_order }))
+      .sort((a, b) => ((a.display_order || 100) - (b.display_order || 100)) || String(a.canonical_name).localeCompare(String(b.canonical_name)));
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
-      products: prodRes.rows,
-      aliases:  Object.fromEntries(aliasRes.rows.map(r => [r.alias, r.canonical_name])),
+      products,
+      aliases:  Object.fromEntries(aliasRows.filter(r => r.alias).map(r => [r.alias, r.canonical_name])),
     });
   } catch (err) {
     console.error('GET /api/products error:', err);
@@ -536,8 +515,8 @@ app.get('/api/products', async (req, res) => {
 
 // ============================================================================
 // 3. IMPORT BUDGET — upsert budget_lines from parsed Excel
-// Body: { year: number, lines: [{ month_idx, segment, product, volume_mt, revenue_idr, margin_idr }, ...] }
-// Tahun yang di-import akan DI-REPLACE penuh (delete + insert) supaya idempotent.
+// Body: { year, lines: [{ month_idx, segment, product, volume_mt, revenue_idr, margin_idr }] }
+// Tahun yang di-import DI-REPLACE penuh (delete + insert) supaya idempotent.
 // ============================================================================
 app.post('/api/budget/import', async (req, res) => {
   const { year, lines } = req.body || {};
@@ -548,57 +527,47 @@ app.post('/api/budget/import', async (req, res) => {
     return res.status(400).json({ error: 'No lines to import' });
   }
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const result = await repo.withWriteLock(async () => {
+      // Validasi product harus exist di master
+      const prodRows = await repo.getTable('products');
+      const validProducts = new Set(prodRows.map(r => r.canonical_name).filter(Boolean));
+      const unknown = [...new Set(lines.map(l => l.product))].filter(p => !validProducts.has(p));
+      if (unknown.length > 0) {
+        throw new Error(`Unknown product(s): ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}`);
+      }
 
-    // Validasi product harus exist di master (semua canonical sudah seeded)
-    const prodRes = await client.query('SELECT canonical_name FROM products');
-    const validProducts = new Set(prodRes.rows.map(r => r.canonical_name));
-    const unknown = [...new Set(lines.map(l => l.product))].filter(p => !validProducts.has(p));
-    if (unknown.length > 0) {
-      throw new Error(`Unknown product(s): ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}`);
-    }
+      const all = await repo.getTable('budget_lines');
+      // Buang tahun ini (replace penuh), pertahankan tahun lain.
+      const kept = all.filter(r => r.year !== year);
 
-    // Replace penuh untuk tahun ini
-    await client.query('DELETE FROM budget_lines WHERE year = $1', [year]);
-
-    // Insert batch — idempotent: kalau ada duplikat (year,month,segment,product), UPSERT sum
-    for (const l of lines) {
-      const mIdx = parseInt(l.month_idx);
-      if (mIdx < 0 || mIdx > 11) continue;
-      await client.query(`
-        INSERT INTO budget_lines (year, month_idx, segment, product, volume_mt, revenue_idr, margin_idr)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (year, month_idx, segment, product) DO UPDATE SET
-          volume_mt   = budget_lines.volume_mt   + EXCLUDED.volume_mt,
-          revenue_idr = budget_lines.revenue_idr + EXCLUDED.revenue_idr,
-          margin_idr  = budget_lines.margin_idr  + EXCLUDED.margin_idr,
-          updated_at  = CURRENT_TIMESTAMP
-      `, [
-        year, mIdx,
-        String(l.segment || 'Unknown').trim(),
-        String(l.product).trim(),
-        parseFloat(l.volume_mt)   || 0,
-        parseFloat(l.revenue_idr) || 0,
-        parseFloat(l.margin_idr)  || 0,
-      ]);
-    }
-
-    const cnt = await client.query('SELECT COUNT(*) FROM budget_lines WHERE year = $1', [year]);
-    await client.query('COMMIT');
-    res.json({ success: true, year, rowsInserted: parseInt(cnt.rows[0].count) });
+      // UPSERT-sum per (year, month_idx, segment, product) untuk tahun ini.
+      const merged = new Map();
+      for (const l of lines) {
+        const mIdx = parseInt(l.month_idx, 10);
+        if (mIdx < 0 || mIdx > 11 || Number.isNaN(mIdx)) continue;
+        const segment = String(l.segment || 'Unknown').trim();
+        const product = String(l.product).trim();
+        const k = `${mIdx}__${segment}__${product}`;
+        if (!merged.has(k)) merged.set(k, { year, month_idx: mIdx, segment, product, volume_mt: 0, revenue_idr: 0, margin_idr: 0, updated_at: new Date().toISOString() });
+        const row = merged.get(k);
+        row.volume_mt   += num(l.volume_mt);
+        row.revenue_idr += num(l.revenue_idr);
+        row.margin_idr  += num(l.margin_idr);
+      }
+      const newRows = [...merged.values()];
+      const written = await repo.replaceTable('budget_lines', [...kept, ...newRows]);
+      return written.filter(r => r.year === year).length;
+    });
+    res.json({ success: true, year, rowsInserted: result });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('POST /api/budget/import error:', err);
     res.status(500).json({ error: 'Import failed: ' + err.message });
-  } finally {
-    client.release();
   }
 });
 
 // ============================================================================
-// 4. DELETE BUDGET — wipe budget_lines for a given year (so user can re-upload)
+// 4. DELETE BUDGET — wipe budget_lines for a given year
 // ============================================================================
 app.delete('/api/budget/:year', async (req, res) => {
   const year = parseInt(req.params.year);
@@ -606,8 +575,13 @@ app.delete('/api/budget/:year', async (req, res) => {
     return res.status(400).json({ error: 'Invalid year' });
   }
   try {
-    const result = await pool.query('DELETE FROM budget_lines WHERE year = $1', [year]);
-    res.json({ success: true, year, rowsDeleted: result.rowCount });
+    const deleted = await repo.withWriteLock(async () => {
+      const all = await repo.getTable('budget_lines');
+      const kept = all.filter(r => r.year !== year);
+      await repo.replaceTable('budget_lines', kept);
+      return all.length - kept.length;
+    });
+    res.json({ success: true, year, rowsDeleted: deleted });
   } catch (err) {
     console.error('DELETE /api/budget error:', err);
     res.status(500).json({ error: 'Delete failed: ' + err.message });
@@ -615,7 +589,7 @@ app.delete('/api/budget/:year', async (req, res) => {
 });
 
 // ============================================================================
-// 3. POST DATA — save actuals + plan revisions for a given year
+// 5. POST DATA — save actuals + plan revisions for a given year
 // ============================================================================
 app.post('/api/data', async (req, res) => {
   const { ACTUAL, PLAN_REVISIONS } = req.body;
@@ -623,260 +597,226 @@ app.post('/api/data', async (req, res) => {
     return res.status(400).json({ error: 'Invalid payload' });
   }
   const aYear = parseInt(req.body.year) || 2026;
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await repo.withWriteLock(async () => {
+      const now = new Date().toISOString();
 
-    for (let i = 0; i < 12; i++) {
-      await client.query(`
-        INSERT INTO monthly_actuals (month_idx, year, actual_margin, plan_margin, revenue, notes)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (month_idx, year) DO UPDATE SET
-          actual_margin = EXCLUDED.actual_margin,
-          plan_margin   = EXCLUDED.plan_margin,
-          revenue       = EXCLUDED.revenue,
-          notes         = EXCLUDED.notes,
-          updated_at    = CURRENT_TIMESTAMP
-      `, [i, aYear, ACTUAL.margin[i], ACTUAL.plan[i], ACTUAL.revenue[i], ACTUAL.notes[i]]);
-    }
-
-    // Hanya hapus plan_revisions untuk tahun ini — bukan semua tahun.
-    await client.query('DELETE FROM plan_revisions WHERE year = $1', [aYear]);
-    for (let i = 0; i < 12; i++) {
-      for (const rev of PLAN_REVISIONS[i] || []) {
-        await client.query(`
-          INSERT INTO plan_revisions (month_idx, year, name, margin, revenue, notes, qty, ts)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [
-          i,
-          aYear,
-          rev.name,
-          rev.margin  !== '' && rev.margin  != null ? rev.margin  : null,
-          rev.revenue !== '' && rev.revenue != null ? rev.revenue : null,
-          rev.notes,
-          rev.qty || {},
-          rev.ts
-        ]);
+      // monthly_actuals: upsert 12 baris untuk tahun ini, pertahankan tahun lain.
+      const actualsAll = await repo.getTable('monthly_actuals');
+      const keptActuals = actualsAll.filter(r => r.year !== aYear);
+      const newActuals = [];
+      for (let i = 0; i < 12; i++) {
+        newActuals.push({
+          month_idx: i, year: aYear,
+          actual_margin: ACTUAL.margin[i],
+          plan_margin:   ACTUAL.plan[i],
+          revenue:       ACTUAL.revenue[i],
+          notes:         ACTUAL.notes[i] || '',
+          updated_at:    now,
+        });
       }
-    }
-    await client.query('COMMIT');
+      await repo.replaceTable('monthly_actuals', [...keptActuals, ...newActuals]);
+
+      // plan_revisions: hapus tahun ini, insert ulang. Tahun lain dipertahankan.
+      const plansAll = await repo.getTable('plan_revisions');
+      const keptPlans = plansAll.filter(r => r.year !== aYear);
+      const newPlans = [];
+      for (let i = 0; i < 12; i++) {
+        for (const rev of PLAN_REVISIONS[i] || []) {
+          newPlans.push({
+            month_idx: i, year: aYear,
+            name: rev.name,
+            margin:  rev.margin  !== '' && rev.margin  != null ? num(rev.margin)  : null,
+            revenue: rev.revenue !== '' && rev.revenue != null ? num(rev.revenue) : null,
+            notes: rev.notes,
+            qty: rev.qty || {},
+            ts: rev.ts,
+            created_at: now,
+          });
+        }
+      }
+      await repo.replaceTable('plan_revisions', [...keptPlans, ...newPlans]);
+    });
     res.json({ success: true });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('POST /api/data error:', err);
-    res.status(500).json({ error: 'Database write failed: ' + err.message });
-  } finally {
-    client.release();
+    res.status(500).json({ error: 'Sheets write failed: ' + err.message });
   }
 });
 
+// ── Re-aggregate monthly_actuals untuk satu (month, year) dari ps_headers ──────
+// Dipakai setelah PS di-upsert/dihapus. Mengembalikan array monthly_actuals baru.
+function reaggregateActuals(actualsAll, headersAll, monthIdx, psYear) {
+  const inBucket = headersAll.filter(h => h.dashboard_month_idx === monthIdx && h.dashboard_year === psYear);
+  const idx = actualsAll.findIndex(r => r.month_idx === monthIdx && r.year === psYear);
+  const now = new Date().toISOString();
+  if (inBucket.length > 0) {
+    const m = inBucket.reduce((s, h) => s + num(h.margin), 0) / 1e6;
+    const r = inBucket.reduce((s, h) => s + num(h.sales_revenue), 0) / 1e6;
+    if (idx >= 0) {
+      actualsAll[idx] = { ...actualsAll[idx], actual_margin: m, revenue: r, updated_at: now };
+    } else {
+      actualsAll.push({ month_idx: monthIdx, year: psYear, actual_margin: m, plan_margin: null, revenue: r, notes: '', updated_at: now });
+    }
+    return { mMIDR: m, rMIDR: r, remaining: inBucket.length };
+  }
+  // Tidak ada PS tersisa → kosongkan actual_margin/revenue (kalau barisnya ada)
+  if (idx >= 0) {
+    actualsAll[idx] = { ...actualsAll[idx], actual_margin: null, revenue: null, updated_at: now };
+  }
+  return { mMIDR: 0, rMIDR: 0, remaining: 0 };
+}
+
 // ============================================================================
-// 4. POST PROJECT SHEET — save one PS, FX-convert margin → IDR, re-aggregate
+// 6. POST PROJECT SHEET — save one PS, FX-convert margin → IDR, re-aggregate
 // ============================================================================
 app.post('/api/project-sheet', async (req, res) => {
   const { header, items } = req.body;
   if (!header || !header.psNumber) {
     return res.status(400).json({ error: 'Missing header.psNumber' });
   }
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const out = await repo.withWriteLock(async () => {
+      const parsedPoDate = parseProjectSheetDate(header.poDate);
+      let monthIdx = parsedPoDate.monthIdx == null ? 0 : parsedPoDate.monthIdx;
+      if (monthIdx < 0 || monthIdx > 11) monthIdx = 0;
 
-    const parsedPoDate = parseProjectSheetDate(header.poDate);
-    let monthIdx = parsedPoDate.monthIdx == null ? 0 : parsedPoDate.monthIdx;
-    if (monthIdx < 0 || monthIdx > 11) monthIdx = 0;
+      const psYear = parseInt(header.dashboardYear) ||
+        (parsedPoDate.date ? parseInt(parsedPoDate.date.slice(0, 4), 10) : new Date().getFullYear());
 
-    const psYear = parseInt(header.dashboardYear) ||
-      (parsedPoDate.date ? parseInt(parsedPoDate.date.slice(0, 4), 10) : new Date().getFullYear());
-
-    // Detect canonical product dari material/project name pakai product_aliases
-    let detectedProduct = null;
-    let detectedSegment = null;
-    if (Array.isArray(items) && items.length > 0) {
-      const aliasRes = await client.query('SELECT alias, canonical_name FROM product_aliases');
-      const aliases = aliasRes.rows
-        .map(r => ({ alias: r.alias.toLowerCase(), canonical: r.canonical_name }))
-        .sort((a, b) => b.alias.length - a.alias.length); // longest alias first
-      const haystack = (
-        (header.projectName || '') + ' ' +
-        items.slice(0, 5).map(it => (it.material || '') + ' ' + (it.size || '')).join(' ')
-      ).toLowerCase();
-      for (const { alias, canonical } of aliases) {
-        if (haystack.includes(alias)) { detectedProduct = canonical; break; }
+      // Detect canonical product dari material/project name pakai product_aliases
+      let detectedProduct = null;
+      let detectedSegment = null;
+      if (Array.isArray(items) && items.length > 0) {
+        const aliasRows = await repo.getTable('product_aliases');
+        const aliases = aliasRows
+          .filter(r => r.alias)
+          .map(r => ({ alias: String(r.alias).toLowerCase(), canonical: r.canonical_name }))
+          .sort((a, b) => b.alias.length - a.alias.length); // longest alias first
+        const haystack = (
+          (header.projectName || '') + ' ' +
+          items.slice(0, 5).map(it => (it.material || '') + ' ' + (it.size || '')).join(' ')
+        ).toLowerCase();
+        for (const { alias, canonical } of aliases) {
+          if (haystack.includes(alias)) { detectedProduct = canonical; break; }
+        }
       }
-    }
-    // Segment heuristic dari canonical product
-    if (detectedProduct) {
-      const segMap = {
-        'Sheet Pile':'Long', 'ERW Pipe':'Long', 'Seamless Pipe':'Long', 'Angle':'Long',
-        'Bar':'Long', 'Beam':'Long', 'Channel':'Long', 'As Steel':'Long', 'Hollow':'Long',
-        'HRC':'Flat', 'HRPO':'Flat', 'Plate':'Flat', 'Chequered Plate':'Flat', 'Wear Plate':'Flat',
-        'Galvalume':'Coated', 'Galvanized':'Coated', 'PPGL':'Coated', 'Wiremesh':'Coated',
-        'Slab':'Semi-Finished', 'Billet':'Semi-Finished',
-        'HBI':'Raw Material', 'Scrap':'Raw Material',
-        'Projects':'Projects',
+      // Segment heuristic dari canonical product
+      if (detectedProduct) {
+        const segMap = {
+          'Sheet Pile':'Long', 'ERW Pipe':'Long', 'Seamless Pipe':'Long', 'Angle':'Long',
+          'Bar':'Long', 'Beam':'Long', 'Channel':'Long', 'As Steel':'Long', 'Hollow':'Long',
+          'HRC':'Flat', 'HRPO':'Flat', 'Plate':'Flat', 'Chequered Plate':'Flat', 'Wear Plate':'Flat',
+          'Galvalume':'Coated', 'Galvanized':'Coated', 'PPGL':'Coated', 'Wiremesh':'Coated',
+          'Slab':'Semi-Finished', 'Billet':'Semi-Finished',
+          'HBI':'Raw Material', 'Scrap':'Raw Material',
+          'Projects':'Projects',
+        };
+        detectedSegment = segMap[detectedProduct] || null;
+      }
+
+      const now = new Date().toISOString();
+
+      // ps_headers: upsert (by ps_number)
+      const headersAll = await repo.getTable('ps_headers');
+      const hIdx = headersAll.findIndex(h => h.ps_number === header.psNumber);
+      const newHeader = {
+        ps_number:           header.psNumber,
+        dashboard_month_idx: monthIdx,
+        dashboard_year:      psYear,
+        project_code:        header.projectCode,
+        project_name:        header.projectName,
+        subsidiary:          header.subsidiary,
+        customer_name:       header.customerName,
+        supplier_name:       header.supplierName,
+        po_date:             parsedPoDate.date,
+        currency:            header.currency || 'IDR',
+        fx_rate:             header.fxToIDR  || 1,
+        net_margin_native:   header.netMarginNative != null ? header.netMarginNative : header.margin,
+        sales_revenue:       header.salesIDR != null ? header.salesIDR : header.sales,
+        purchase_cost:       header.purchase,
+        margin:              header.marginIDR != null ? header.marginIDR : header.margin,
+        margin_percentage:   header.marginPct,
+        product:             detectedProduct,
+        segment:             detectedSegment,
+        notes:               hIdx >= 0 ? headersAll[hIdx].notes : null,
+        created_at:          hIdx >= 0 ? headersAll[hIdx].created_at : now,
       };
-      detectedSegment = segMap[detectedProduct] || null;
-    }
+      if (hIdx >= 0) headersAll[hIdx] = newHeader; else headersAll.push(newHeader);
+      await repo.replaceTable('ps_headers', headersAll);
 
-    await client.query(`
-      INSERT INTO ps_headers (
-        ps_number, dashboard_month_idx, dashboard_year,
-        project_code, project_name, subsidiary,
-        customer_name, supplier_name,
-        po_date,
-        currency, fx_rate, net_margin_native,
-        sales_revenue, purchase_cost,
-        margin, margin_percentage,
-        product, segment
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-      ON CONFLICT (ps_number) DO UPDATE SET
-        dashboard_month_idx  = EXCLUDED.dashboard_month_idx,
-        dashboard_year       = EXCLUDED.dashboard_year,
-        project_code         = EXCLUDED.project_code,
-        project_name         = EXCLUDED.project_name,
-        subsidiary           = EXCLUDED.subsidiary,
-        customer_name        = EXCLUDED.customer_name,
-        supplier_name        = EXCLUDED.supplier_name,
-        po_date              = EXCLUDED.po_date,
-        currency             = EXCLUDED.currency,
-        fx_rate              = EXCLUDED.fx_rate,
-        net_margin_native    = EXCLUDED.net_margin_native,
-        sales_revenue        = EXCLUDED.sales_revenue,
-        purchase_cost        = EXCLUDED.purchase_cost,
-        margin               = EXCLUDED.margin,
-        margin_percentage    = EXCLUDED.margin_percentage,
-        product              = EXCLUDED.product,
-        segment              = EXCLUDED.segment
-    `, [
-      header.psNumber,
-      monthIdx,
-      psYear,
-      header.projectCode,
-      header.projectName,
-      header.subsidiary,
-      header.customerName,
-      header.supplierName,
-      parsedPoDate.date,
-      header.currency || 'IDR',
-      header.fxToIDR  || 1,
-      header.netMarginNative != null ? header.netMarginNative : header.margin,
-      header.salesIDR != null ? header.salesIDR : header.sales,
-      header.purchase,
-      header.marginIDR != null ? header.marginIDR : header.margin,
-      header.marginPct,
-      detectedProduct,
-      detectedSegment,
-    ]);
+      // ps_items: hapus item lama PS ini, insert ulang.
+      const itemsAll = await repo.getTable('ps_items');
+      const keptItems = itemsAll.filter(i => i.ps_number !== header.psNumber);
+      const newItems = (items || []).map(item => ({
+        ps_number:         header.psNumber,
+        dashboard_year:    psYear,
+        dashboard_month_idx: monthIdx,
+        project_name:      header.projectName,
+        item_no:           item.no,
+        material:          item.material,
+        size:              item.size,
+        length:            item.length,
+        qty_val:           item.qtyVal,
+        qty_unit:          item.qtyUnit,
+        total_weight_kg:   item.totalWeight,
+        purchase_price_kg: item.purchasePrice,
+        created_at:        now,
+      }));
+      await repo.replaceTable('ps_items', [...keptItems, ...newItems]);
 
-    await client.query('DELETE FROM ps_items WHERE ps_number = $1', [header.psNumber]);
-    for (const item of (items || [])) {
-      await client.query(`
-        INSERT INTO ps_items (
-          ps_number, item_no, material, size, length,
-          qty_val, qty_unit, total_weight_kg, purchase_price_kg
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-      `, [
-        header.psNumber,
-        item.no, item.material, item.size, item.length,
-        item.qtyVal, item.qtyUnit, item.totalWeight, item.purchasePrice
-      ]);
-    }
+      // Re-aggregate monthly_actuals untuk (year, month) ini saja
+      const actualsAll = await repo.getTable('monthly_actuals');
+      const agg = reaggregateActuals(actualsAll, headersAll, monthIdx, psYear);
+      await repo.replaceTable('monthly_actuals', actualsAll);
 
-    // Re-aggregate monthly_actuals untuk (year, month) ini saja
-    const agg = await client.query(`
-      SELECT COALESCE(SUM(margin),0)        AS m,
-             COALESCE(SUM(sales_revenue),0) AS r
-        FROM ps_headers
-       WHERE dashboard_month_idx = $1 AND dashboard_year = $2
-    `, [monthIdx, psYear]);
-    const mMIDR = parseFloat(agg.rows[0].m) / 1e6;
-    const rMIDR = parseFloat(agg.rows[0].r) / 1e6;
-    await client.query(`
-      INSERT INTO monthly_actuals (month_idx, year, actual_margin, revenue)
-      VALUES ($1,$2,$3,$4)
-      ON CONFLICT (month_idx, year) DO UPDATE SET
-        actual_margin = EXCLUDED.actual_margin,
-        revenue       = EXCLUDED.revenue,
-        updated_at    = CURRENT_TIMESTAMP
-    `, [monthIdx, psYear, mMIDR, rMIDR]);
-
-    await client.query('COMMIT');
-    res.json({ success: true, message: `Imported ${header.psNumber}.`, monthIdx, year: psYear, mMIDR, rMIDR });
+      return { monthIdx, year: psYear, mMIDR: agg.mMIDR, rMIDR: agg.rMIDR };
+    });
+    res.json({ success: true, message: `Imported ${header.psNumber}.`, ...out });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('POST /api/project-sheet error:', err);
     res.status(500).json({ error: 'Failed to import Project Sheet: ' + err.message });
-  } finally {
-    client.release();
   }
 });
 
 // ============================================================================
-// 5. DELETE PROJECT SHEET — hapus PS & re-aggregate untuk (month, year)-nya
+// 7. DELETE PROJECT SHEET — hapus PS & re-aggregate untuk (month, year)-nya
 // ============================================================================
 app.delete('/api/project-sheet/:psNumber', async (req, res) => {
   const psNumber = decodeURIComponent(req.params.psNumber);
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const out = await repo.withWriteLock(async () => {
+      const headersAll = await repo.getTable('ps_headers');
+      const target = headersAll.find(h => h.ps_number === psNumber);
+      if (!target) return { notFound: true };
 
-    // Cari (month, year) dari PS yang akan dihapus
-    const findRes = await client.query(
-      'SELECT dashboard_month_idx, dashboard_year FROM ps_headers WHERE ps_number = $1',
-      [psNumber]
-    );
-    if (findRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'PS not found' });
-    }
-    const monthIdx = findRes.rows[0].dashboard_month_idx;
-    const psYear   = findRes.rows[0].dashboard_year;
+      const monthIdx = target.dashboard_month_idx;
+      const psYear   = target.dashboard_year;
 
-    await client.query('DELETE FROM ps_items   WHERE ps_number = $1', [psNumber]);
-    await client.query('DELETE FROM ps_headers WHERE ps_number = $1', [psNumber]);
+      const remainingHeaders = headersAll.filter(h => h.ps_number !== psNumber);
+      await repo.replaceTable('ps_headers', remainingHeaders);
 
-    // Re-aggregate hanya untuk (month, year) ini
-    const remainingRes = await client.query(
-      'SELECT COUNT(*) FROM ps_headers WHERE dashboard_month_idx = $1 AND dashboard_year = $2',
-      [monthIdx, psYear]
-    );
-    const remaining = parseInt(remainingRes.rows[0].count);
+      const itemsAll = await repo.getTable('ps_items');
+      await repo.replaceTable('ps_items', itemsAll.filter(i => i.ps_number !== psNumber));
 
-    if (remaining > 0) {
-      const agg = await client.query(`
-        SELECT COALESCE(SUM(margin),0) AS m, COALESCE(SUM(sales_revenue),0) AS r
-          FROM ps_headers
-         WHERE dashboard_month_idx = $1 AND dashboard_year = $2
-      `, [monthIdx, psYear]);
-      await client.query(`
-        UPDATE monthly_actuals
-           SET actual_margin = $1, revenue = $2, updated_at = CURRENT_TIMESTAMP
-         WHERE month_idx = $3 AND year = $4
-      `, [parseFloat(agg.rows[0].m)/1e6, parseFloat(agg.rows[0].r)/1e6, monthIdx, psYear]);
-    } else {
-      await client.query(`
-        UPDATE monthly_actuals
-           SET actual_margin = NULL, revenue = NULL, updated_at = CURRENT_TIMESTAMP
-         WHERE month_idx = $1 AND year = $2
-      `, [monthIdx, psYear]);
-    }
+      const actualsAll = await repo.getTable('monthly_actuals');
+      const agg = reaggregateActuals(actualsAll, remainingHeaders, monthIdx, psYear);
+      await repo.replaceTable('monthly_actuals', actualsAll);
 
-    await client.query('COMMIT');
-    res.json({ success: true, message: `${psNumber} deleted.`, monthIdx, year: psYear, remaining });
+      return { monthIdx, year: psYear, remaining: agg.remaining };
+    });
+    if (out.notFound) return res.status(404).json({ error: 'PS not found' });
+    res.json({ success: true, message: `${psNumber} deleted.`, ...out });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('DELETE /api/project-sheet error:', err);
     res.status(500).json({ error: 'Failed to delete Project Sheet: ' + err.message });
-  } finally {
-    client.release();
   }
 });
 
 // ── Health check (buat uptime monitor) ────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    await repo.ping();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -884,4 +824,10 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ── Listen — taruh paling akhir biar semua route sudah terdaftar ──────────────
-app.listen(port, () => console.log(`Server running on port ${port}`));
+// Hanya listen saat dijalankan langsung (`node server.js`); saat di-require untuk
+// test, app cukup diekspor tanpa membuka port.
+if (require.main === module) {
+  app.listen(port, () => console.log(`Server running on port ${port}`));
+}
+
+module.exports = app;

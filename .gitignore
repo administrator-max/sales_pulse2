@@ -2,5 +2,10 @@ node_modules/
 .env
 *.log
 
+# Kredensial service account Google (JANGAN di-commit)
+service-account.json
+*-service-account.json
+*.serviceaccount.json
+
 # Claude Code workspace (worktrees, scratch dirs, settings)
 .claude/
