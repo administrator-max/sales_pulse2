@@ -108,6 +108,33 @@
       font-size:11px; font-weight:700; letter-spacing:0;
       border:1px solid rgba(32,119,189,0.20);
     }
+    /* ── Refresh controls ── */
+    .filter-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+    .filter-right .filter-ytd-badge { margin-left:0; }
+    .refresh-btn {
+      display:inline-flex; align-items:center; gap:6px;
+      height:34px; padding:0 12px;
+      background:var(--s1); border:1px solid var(--border);
+      border-radius:8px; color:var(--text);
+      font-family:inherit; font-size:12px; font-weight:700;
+      cursor:pointer; outline:none; transition:border-color .15s, background .15s;
+    }
+    .refresh-btn:hover  { border-color:var(--brand-blue); }
+    .refresh-btn:active { background:var(--blue-lt); }
+    .refresh-btn.spinning svg { animation:exec-spin .8s linear infinite; transform-origin:50% 50%; }
+    @keyframes exec-spin { to { transform:rotate(360deg); } }
+    .auto-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      height:34px; padding:0 12px; border-radius:8px;
+      cursor:pointer; user-select:none;
+      font-size:11px; font-weight:700; letter-spacing:.3px;
+      border:1px solid var(--border); background:var(--s1); color:var(--muted);
+      transition:all .15s;
+    }
+    .auto-pill.on { color:#16a34a; border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.08); }
+    .auto-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .auto-pill.on .auto-dot { box-shadow:0 0 0 3px rgba(34,197,94,.18); }
+    .refresh-stamp { font-size:10px; color:var(--muted); font-weight:600; min-width:96px; text-align:right; }
 
     /* ── KPI Cards grid ── */
     .kpi-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
@@ -362,7 +389,17 @@
       <option value="8">September</option><option value="9">October</option>
       <option value="10">November</option><option value="11">December</option>
     </select>
-    <div class="filter-ytd-badge" id="exec-period-badge">YTD 2026</div>
+    <div class="filter-right">
+      <button class="refresh-btn" id="exec-refresh" onclick="refreshNow()" title="Tarik data terbaru dari Google Sheet">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span>Refresh</span>
+      </button>
+      <div class="auto-pill" id="exec-auto" onclick="toggleAuto()" title="Auto-refresh tiap 60 detik">
+        <span class="auto-dot"></span><span id="exec-auto-label">Auto</span>
+      </div>
+      <span class="refresh-stamp" id="exec-stamp">—</span>
+      <div class="filter-ytd-badge" id="exec-period-badge">YTD 2026</div>
+    </div>
   </div>
 
   <!-- KPI Cards -->
@@ -1013,17 +1050,56 @@ function render() {
   document.getElementById('top-cust-ytd-list').innerHTML = rankListHTML(topCustomersByMargin(ytdCusts).slice(0, 3), 'blue');
 }
 
-// ── Fetch data ─────────────────────────────────────────────────────────────────
+// ── Fetch data + Refresh / Auto-refresh ─────────────────────────────────────────
+let autoTimer = null;
+const AUTO_MS = 60000; // 60 detik
+
+function setRefreshing(on) {
+  const btn = document.getElementById('exec-refresh');
+  if (btn) btn.classList.toggle('spinning', on);
+}
+function markStamp() {
+  const el = document.getElementById('exec-stamp');
+  if (!el) return;
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  el.textContent = 'Updated ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
 async function fetchData() {
+  setRefreshing(true);
   try {
-    const res = await fetch('/api/data?year=' + curYear);
+    // cache-buster supaya selalu data terbaru (lewati cache browser max-age=5)
+    const res = await fetch('/api/data?year=' + curYear + '&_=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     DATA = await res.json();
     render();
+    markStamp();
   } catch(e) {
     console.error('Fetch error:', e);
+  } finally {
+    setRefreshing(false);
   }
 }
+
+function refreshNow() { fetchData(); }
+
+function startAuto() { if (!autoTimer) autoTimer = setInterval(() => { if (!document.hidden) fetchData(); }, AUTO_MS); }
+function stopAuto()  { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+function setAutoUI(on) {
+  const pill = document.getElementById('exec-auto');
+  const lbl  = document.getElementById('exec-auto-label');
+  if (pill) pill.classList.toggle('on', on);
+  if (lbl)  lbl.textContent = on ? 'Auto: ON' : 'Auto: OFF';
+}
+function toggleAuto() {
+  const on = !autoTimer;          // sedang mati → nyalakan
+  if (on) startAuto(); else stopAuto();
+  setAutoUI(on);
+  try { localStorage.setItem('exec_auto', on ? '1' : '0'); } catch(e) {}
+}
+
+// Saat tab kembali aktif & auto ON → langsung segarkan
+document.addEventListener('visibilitychange', () => { if (!document.hidden && autoTimer) fetchData(); });
 
 function applyFilter() {
   curYear  = parseInt(document.getElementById('exec-year').value);
@@ -1082,6 +1158,14 @@ if (savedMonth) { curMonth = parseInt(savedMonth); document.getElementById('exec
 
 buildDots();
 fetchData();
+
+// Auto-refresh: default ON (tiap 60 detik). Bisa di-toggle via pill "Auto", preferensi disimpan.
+(function initAuto() {
+  let on = true;
+  try { if (localStorage.getItem('exec_auto') === '0') on = false; } catch(e) {}
+  setAutoUI(on);
+  if (on) startAuto();
+})();
 </script>
 <div id="kpi-float-tip"></div>
 </body>
