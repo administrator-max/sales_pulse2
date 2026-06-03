@@ -278,12 +278,29 @@ app.get('/api/data', async (req, res) => {
     });
 
     // 2. ACTUAL
+    // margin & revenue dihitung LIVE dari ps_headers (SUM per bulan) supaya edit
+    // manual di sheet langsung tercermin di KPI tanpa lewat aplikasi. Bulan tanpa
+    // PS → null (belum ada actual). plan_margin & notes tetap dari monthly_actuals.
     const ACTUAL = { margin: Array(12).fill(null), plan: Array(12).fill(null), revenue: Array(12).fill(null), notes: Array(12).fill('') };
+    const actMonth = Array.from({ length: 12 }, () => ({ count: 0, margin: 0, revenue: 0 }));
+    headerRows.forEach(h => {
+      const m = h.dashboard_month_idx;
+      if (m == null || m < 0 || m > 11) return;
+      actMonth[m].count++;
+      actMonth[m].margin  += num(h.margin);
+      actMonth[m].revenue += num(h.sales_revenue);
+    });
+    for (let m = 0; m < 12; m++) {
+      if (actMonth[m].count > 0) {
+        ACTUAL.margin[m]  = actMonth[m].margin  / 1e6; // MIDR
+        ACTUAL.revenue[m] = actMonth[m].revenue / 1e6; // MIDR
+      }
+    }
+    // plan_margin & notes tetap dari monthly_actuals (input manual via dashboard)
     actualRows.forEach(r => {
-      ACTUAL.margin[r.month_idx]  = r.actual_margin != null ? num(r.actual_margin) : null;
-      ACTUAL.plan[r.month_idx]    = r.plan_margin   != null ? num(r.plan_margin)   : null;
-      ACTUAL.revenue[r.month_idx] = r.revenue       != null ? num(r.revenue)       : null;
-      ACTUAL.notes[r.month_idx]   = r.notes || '';
+      if (r.month_idx == null || r.month_idx < 0 || r.month_idx > 11) return;
+      ACTUAL.plan[r.month_idx]  = r.plan_margin != null ? num(r.plan_margin) : null;
+      ACTUAL.notes[r.month_idx] = r.notes || '';
     });
 
     // 2b. ACTUAL_PRODUCTS — actual margin/revenue/volume per canonical product per bulan
